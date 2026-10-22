@@ -1,0 +1,228 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Address Ledger</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: sticky control bar over a full-width ledger; rows tinted by balance state */
+:root{
+  --bg:#f3f1ec; --panel:#fbfaf7; --fg:#1b1d22; --muted:#6c7079; --line:#e0ddd5;
+  --funded:#b45f06; --funded-bg:#fbeedb; --funded-line:#f0cf9f;
+  --empty:#3f5d68; --empty-bg:#e8eef0; --empty-line:#cbd8dc;
+  --pending:#8a8d96; --accent:#1b1d22; --accent-fg:#fbfaf7;
+  --display:"Bricolage Grotesque",system-ui,sans-serif; --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f1318; --panel:#161c23; --fg:#e8e6e0; --muted:#8a919b; --line:#242d37;
+  --funded:#f7a43b; --funded-bg:#2b2014; --funded-line:#4a3519;
+  --empty:#7fb0be; --empty-bg:#14222a; --empty-line:#233a45;
+  --pending:#6d7480; --accent:#e8e6e0; --accent-fg:#0f1318; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0f1318; --panel:#161c23; --fg:#e8e6e0; --muted:#8a919b; --line:#242d37;
+  --funded:#f7a43b; --funded-bg:#2b2014; --funded-line:#4a3519;
+  --empty:#7fb0be; --empty-bg:#14222a; --empty-line:#233a45;
+  --pending:#6d7480; --accent:#e8e6e0; --accent-fg:#0f1318; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:14px/1.5 var(--mono);padding-block:28px 56px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:1240px;margin:0 auto;display:grid;gap:20px;min-width:0}
+header{display:flex;flex-wrap:wrap;gap:16px 32px;align-items:end;justify-content:space-between}
+h1{font:700 clamp(30px,5vw,52px)/1 var(--display);letter-spacing:-.02em;margin:0;text-wrap:balance}
+.sub{color:var(--muted);margin:8px 0 0;max-width:60ch}
+.stats{display:flex;gap:28px;flex-wrap:wrap}
+.stat b{display:block;font:700 26px/1.1 var(--display);font-variant-numeric:tabular-nums}
+.stat span{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.stat.f b{color:var(--funded)} .stat.e b{color:var(--empty)}
+.bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:10px;border-bottom:1px solid var(--line)}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+button,input,textarea{font:inherit;color:inherit}
+.chip,.btn{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:6px 14px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.btn:disabled{opacity:.5;cursor:default}
+.chip:focus-visible,.btn:focus-visible,input:focus-visible,textarea:focus-visible,.cp:focus-visible{outline:2px solid var(--funded);outline-offset:2px}
+input[type=search]{flex:1 1 200px;min-width:0;border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:7px 12px}
+.msg{min-height:20px;color:var(--muted);font-size:12px}
+.tablebox{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+table{border-collapse:collapse;width:100%;min-width:900px}
+th{position:sticky;top:0;text-align:left;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:10px 14px;border-bottom:1px solid var(--line);background:var(--panel);font-weight:500}
+td{padding:9px 14px;border-bottom:1px solid var(--line);white-space:nowrap}
+tr:last-child td{border-bottom:0}
+td.n{color:var(--muted);font-variant-numeric:tabular-nums;width:52px}
+td.bal{text-align:right;font-variant-numeric:tabular-nums}
+th.bal{text-align:right}
+.cp{all:unset;cursor:pointer;border-radius:4px;padding:1px 3px;margin:-1px -3px}
+.cp:hover{background:var(--line)}
+.h160{color:var(--muted);font-size:12.5px}
+tr.funded td{background:var(--funded-bg);border-bottom-color:var(--funded-line)}
+tr.funded td.bal,tr.funded td.n{color:var(--funded);font-weight:500}
+tr.empty td{background:var(--empty-bg);border-bottom-color:var(--empty-line)}
+tr.empty td.bal{color:var(--empty)}
+.pill{display:inline-block;font-size:11px;letter-spacing:.08em;text-transform:uppercase;padding:2px 9px;border-radius:999px;border:1px solid currentColor}
+.funded .pill{color:var(--funded)} .empty .pill{color:var(--empty)} .pending .pill{color:var(--pending)}
+a{color:var(--muted)} a:hover{color:var(--fg)}
+details{border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:12px 16px}
+summary{cursor:pointer}
+textarea{width:100%;min-height:110px;margin-top:10px;border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:10px;font-size:12px}
+.links{display:grid;gap:6px;margin:10px 0 0;padding:0;list-style:none;font-size:12px}
+.links a{word-break:break-all}
+@media (max-width:700px){
+  .bar{position:static}
+  .tablebox{overflow:visible;border:0;background:transparent;display:grid;gap:8px}
+  table,tbody{display:block;min-width:0}
+  thead{display:none}
+  tr{display:grid;grid-template-columns:auto 1fr auto;gap:6px 12px;align-items:center;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+  tr.funded{background:var(--funded-bg);border-color:var(--funded-line)}
+  tr.empty{background:var(--empty-bg);border-color:var(--empty-line)}
+  td,tr.funded td,tr.empty td{display:block;padding:0;border:0;background:transparent;white-space:normal;word-break:break-all;min-width:0}
+  td.n{grid-area:1/1;width:auto;font-size:15px}
+  td.bal{grid-area:1/2;text-align:left;font-size:15px;word-break:normal}
+  td:nth-child(5){grid-area:1/3}
+  td:nth-child(2){grid-area:2/1/3/4;font-size:clamp(11px,3.4vw,14px)}
+  .h160{font-size:11px}
+  td:nth-child(3){grid-area:3/1/4/4}
+  td:nth-child(6){grid-area:4/1/5/4;font-size:12px}
+  td.bal::after{content:" BTC";color:var(--muted);font-size:11px}
+  td[colspan]{grid-area:1/1/2/4;text-align:center}
+}
+@media (prefers-reduced-motion:no-preference){tr td{transition:background .3s}}
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Address Ledger</h1>
+      <p class="sub">160 addresses with Base58 and Hash160. Amber rows hold a balance, slate rows are empty. Balances are a snapshot from 22 Oct 2026; use Fetch balances to refresh where the browser allows it.</p>
+    </div>
+    <div class="stats" aria-live="polite">
+      <div class="stat f"><b id="sF">0</b><span>Funded</span></div>
+      <div class="stat e"><b id="sE">0</b><span>Empty</span></div>
+      <div class="stat"><b id="sP">160</b><span>Unchecked</span></div>
+      <div class="stat"><b id="sT">0</b><span>Total BTC</span></div>
+    </div>
+  </header>
+
+  <div class="bar">
+    <div class="chips" id="chips">
+      <button class="chip" data-f="all" aria-pressed="true">All</button>
+      <button class="chip" data-f="funded" aria-pressed="false">Funded</button>
+      <button class="chip" data-f="empty" aria-pressed="false">Empty</button>
+      <button class="chip" data-f="pending" aria-pressed="false">Unchecked</button>
+    </div>
+    <input type="search" id="q" placeholder="Search #, address or hash160" aria-label="Search">
+    <button class="btn primary" id="refresh">Fetch balances</button>
+  </div>
+  <div class="msg" id="msg" role="status"></div>
+
+  <div class="tablebox"><table>
+    <thead><tr><th>#</th><th>Base58</th><th>Hash160</th><th class="bal">Balance (BTC)</th><th>Status</th><th></th></tr></thead>
+    <tbody id="tb"></tbody>
+  </table></div>
+
+  <details id="imp">
+    <summary>Load balances by hand</summary>
+    <p class="sub">If live fetching is blocked here, open each link below, copy the JSON it returns, and paste all of it in the box. Each link covers 40 addresses, so you stay under rate limits.</p>
+    <ul class="links" id="links"></ul>
+    <textarea id="paste" placeholder='Paste JSON like {"1Bg...":{"final_balance":0,"n_tx":2,"total_received":100}}'></textarea>
+    <p><button class="btn" id="apply">Apply pasted data</button></p>
+  </details>
+</div>
+
+<script>
+const ROWS=[[1,"1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH","751e76e8199196d454941c45d1b3a323f1433bd6"],[2,"1CUNEBjYrCn2y1SdiUMohaKUi4wpP326Lb","7dd65592d0ab2fe0d0257d571abf032cd9db93dc"],[3,"19ZewH8Kk1PDbSNdJ97FP4EiCjTRaZMZQA","5dedfbf9ea599dd4e3ca6a80b333c472fd0b3f69"],[4,"1EhqbyUMvvs7BfL8goY6qcPbD6YKfPqb7e","9652d86bedf43ad264362e6e6eba6eb764508127"],[5,"1E6NuFjCi27W5zoXg8TRdcSRq84zJeBW3k","8f9dff39a81ee4abcbad2ad8bafff090415a2be8"],[6,"1PitScNLyp2HCygzadCh7FveTnfmpPbfp8","f93ec34e9e34a8f8ff7d600cdad83047b1bcb45c"],[7,"1McVt1vMtCC7yn5b9wgX1833yCcLXzuee","e2192e8a7dd8dd1c88321959b477968b941aa973"],[8,"1M92tSqNmQLYw33fuBvjmeadirh1ysMBxK","dce76b2613052ea012204404a97b3c25eac31715"],[9,"1CQFwcjw1dwhtkVWBttNLDtqL7ivBonGPV","7d0f6c64afb419bbd7e971e943d7404b0e0daab4"],[10,"1LeBZP5QCwwgXRtmVUvTVrraqPUokyLHqe","d7729816650e581d7462d52ad6f732da0e2ec93b"],[11,"1PgQVLmst3Z314JrQn5TNiys8Hc38TcXJu","f8c698da3164ef8fa4258692d118cc9a902c5acc"],[12,"1DBaumZxUkM4qMQRt2LVWyFJq5kDtSZQot","85a1f9ba4da24c24e582d9b891dacbd1b043f971"],[13,"1Pie8JkxBT6MGPz9Nvi3fsPkr2D8q3GBc1","f932d0188616c964416b91fb9cf76ba9790a921e"],[14,"1ErZWg5cFCe4Vw5BzgfzB74VNLaXEiEkhk","97f9281a1383879d72ac52a6a3e9e8b9a4a4f655"],[15,"1QCbW9HWnwQWiQqVo5exhAnmfqKRrCRsvW","fe7c45126731f7384640b0b0045fd40bac72e2a2"],[16,"1BDyrQ6WoF8VN3g9SAS1iKZcPzFfnDVieY","7025b4efb3ff42eb4d6d71fab6b53b4f4967e3dd"],[17,"1HduPEXZRdG26SUT5Yk83mLkPyjnZuJ7Bm","b67cb6edeabc0c8b927c9ea327628e7aa63e2d52"],[18,"1GnNTmTVLZiqQfLbAdp9DVdicEnB5GoERE","ad1e852b08eba53df306ec9daa8c643426953f94"],[19,"1NWmZRpHH4XSPwsW6dsS3nrNWfL1yrJj4w","ebfbe6819fcdebab061732ce91df7d586a037dee"],[20,"1HsMJxNiV7TLxmoF6uJNkydxPFDog4NQum","b907c3a2a3b27789dfb509b730dd47703c272868"],[21,"14oFNXucftsHiUMY8uctg6N487riuyXs4h","29a78213caa9eea824acf08022ab9dfc83414f56"],[22,"1CfZWK1QTQE3eS9qn61dQjV89KDjZzfNcv","7ff45303774ef7a52fffd8011981034b258cb86b"],[23,"1L2GM8eE7mJWLdo3HZS6su1832NX2txaa","d0a79df189fe1ad5c306cc70497b358415da579e"],[24,"1rSnXMr63jdCuegJFuidJqWxUPV7AtUf7","0959e80121f36aea13b3bad361c15dac26189e2f"],[25,"15JhYXn6Mx3oF4Y7PcTAv2wVVAuCFFQNiP","2f396b29b27324300d0c59b17c3abc1835bd3dbb"],[26,"1JVnST957hGztonaWK6FougdtjxzHzRMMg","bfebb73562d4541b32a02ba664d140b5a574792f"],[27,"128z5d7nN7PkCuX5qoA4Ys6pmxUYnEy86k","0c7aaf6caa7e5424b63d317f0f8f1f9fa40d5560"],[28,"12jbtzBb54r97TCwW3G1gCFoumpckRAPdY","1306b9e4ff56513a476841bac7ba48d69516b1da"],[29,"19EEC52krRUK1RkUAEZmQdjTyHT7Gp1TYT","5a416cc9148f4a377b672c8ae5d3287adaafadec"],[30,"1LHtnpd8nU5VHEMkG2TMYYNUjjLc992bps","d39c4704664e1deb76c9331e637564c257d68a08"],[31,"1LhE6sCTuGae42Axu1L1ZB7L96yi9irEBE","d805f6f251f7479ebd853b3d0f4b9b2656d92f1d"],[32,"1FRoHA9xewq7DjrZ1psWJVeTer8gHRqEvR","9e42601eeaedc244e15f17375adb0e2cd08efdc9"],[33,"187swFMjz1G54ycVU56B7jZFHFTNVQFDiu","4e15e5189752d1eaf444dfd6bff399feb0443977"],[34,"1PWABE7oUahG2AFFQhhvViQovnCr4rEv7Q","f6d67d7983bf70450f295c9cb828daab265f1bfa"],[35,"1PWCx5fovoEaoBowAvF5k91m2Xat9bMgwb","f6d8ce225ffbdecec170f8298c3fc28ae686df25"],[36,"1Be2UF9NLfyLFbtm3TCbmuocc9N1Kduci1","74b1e012be1521e5d8d75e745a26ced845ea3d37"],[37,"14iXhn8bGajVWegZHJ18vJLHhntcpL4dex","28c30fb9118ed1da72e7c4f89c0164756e8a021d"],[38,"1HBtApAFA9B2YZw3G2YKSMCtb3dVnjuNe2","b190e2d40cfdeee2cee072954a2be89e7ba39364"],[39,"122AJhKLEfkFBaGAd84pLp1kfE7xK3GdT8","0b304f2a79a027270276533fe1ed4eff30910876"],[40,"1EeAxcprB2PpCnr34VfZdFrkUWuxyiNEFv","95a156cd21b4a69de969eb6716864f4c8b82a82a"],[41,"1L5sU9qvJeuwQUdt4y1eiLmquFxKjtHr3E","d1562eb37357f9e6fc41cb2359f4d3eda4032329"],[42,"1E32GPWgDyeyQac4aJxm9HVoLrrEYPnM4N","8efb85f9c5b5db2d55973a04128dc7510075ae23"],[43,"1PiFuqGpG8yGM5v6rNHWS3TjsG6awgEGA1","f92044c7924e5525c61207972c253c9fc9f086f7"],[44,"1CkR2uS7LmFwc3T2jV8C1BhWb5mQaoxedF","80df54e1f612f2fc5bdc05c9d21a83aa8d20791e"],[45,"1NtiLNGegHWE3Mp9g2JPkgx6wUg4TW7bbk","f0225bfc68a6e17e87cd8b5e60ae3be18f120753"],[46,"1F3JRMWudBaj48EhwcHDdpeuy2jwACNxjP","9a012260d01c5113df66c8a8438c9f7a1e3d5dac"],[47,"1Pd8VvT49sHKsmqrQiP61RsVwmXCZ6ay7Z","f828005d41b0f4fed4c8dca3b06011072cfb07d4"],[48,"1DFYhaB2J9q1LLZJWKTnscPWos9VBqDHzv","8661cb56d9df0a61f01328b55af7e56a3fe7a2b2"],[49,"12CiUhYVTTH33w3SPUBqcpMoqnApAV4WCF","0d2f533966c6578e1111978ca698f8add7fffdf3"],[50,"1MEzite4ReNuWaL5Ds17ePKt2dCxWEofwk","de081b76f840e462fa2cdf360173dfaf4a976a47"],[51,"1NpnQyZ7x24ud82b7WiRNvPm6N8bqGQnaS","ef6419cffd7fad7027994354eb8efae223c2dbe7"],[52,"15z9c9sVpu6fwNiK7dMAFgMYSK4GqsGZim","36af659edbe94453f6344e920d143f1778653ae7"],[53,"15K1YKJMiJ4fpesTVUcByoz334rHmknxmT","2f4870ef54fa4b048c1365d42594cc7d3d269551"],[54,"1KYUv7nSvXx4642TKeuC2SNdTk326uUpFy","cb66763cf7fde659869ae7f06884d9a0f879a092"],[55,"1LzhS3k3e9Ub8i2W1V8xQFdB8n2MYCHPCa","db53d9bbd1f3a83b094eeca7dd970bd85b492fa2"],[56,"17aPYR1m6pVAacXg1PTDDU7XafvK1dxvhi","48214c5969ae9f43f75070cea1e2cb41d5bdcccd"],[57,"15c9mPGLku1HuW9LRtBf4jcHVpBUt8txKz","328660ef43f66abe2653fa178452a5dfc594c2a1"],[58,"1Dn8NF8qDyyfHMktmuoQLGyjWmZXgvosXf","8c2a6071f89c90c4dab5ab295d7729d1b54ea60f"],[59,"1HAX2n9Uruu9YDt4cqRgYcvtGvZj1rbUyt","b14ed3146f5b2c9bde1703deae9ef33af8110210"],[60,"1Kn5h2qpgw9mWE5jKpk8PP4qvvJ1QVy8su","cdf8e5c7503a9d22642e3ecfc87817672787b9c5"],[61,"1AVJKwzs9AskraJLGHAZPiaZcrpDr1U6AB","68133e19b2dfb9034edf9830a200cfdf38c90cbd"],[62,"1Me6EfpwZK5kQziBwBfvLiHjaPGxCKLoJi","e26646db84b0602f32b34b5a62ca3cae1f91b779"],[63,"1NpYjtLira16LfGbGwZJ5JbDPh3ai9bjf4","ef58afb697b094423ce90721fbb19a359ef7c50e"],[64,"16jY7qLJnxb7CHZyqBP8qca9d51gAjyXQN","3ee4133d991f52fdf6a25c9834e0745ac74248a4"],[65,"18ZMbwUFLMHoZBbfpCjUJQTCMCbktshgpe","52e763a7ddc1aa4fa811578c491c1bc7fd570137"],[66,"13zb1hQbWVsc2S7ZTZnP2G4undNNpdh5so","20d45a6a762535700ce9e0b216e31994335db8a5"],[67,"1BY8GQbnueYofwSuFAT3USAhGjPrkxDdW9","739437bb3dd6d1983e66629c5f08c70e52769371"],[68,"1MVDYgVaSN6iKKEsbzRUAYFrYJadLYZvvZ","e0b8a2baee1b77fc703455f39d51477451fc8cfc"],[69,"19vkiEajfhuZ8bs8Zu2jgmC6oqZbWqhxhG","61eb8a50c86b0584bb727dd65bed8d2400d6d5aa"],[70,"19YZECXj3SxEZMoUeJ1yiPsw8xANe7M7QR","5db8cda53a6a002db10365967d7f85d19e171b10"],[71,"1PWo3JeB9jrGwfHDNpdGK54CRas7fsVzXU","f6f5431d25bbf7b12e8add9af5e3475c44a0a5b8"],[72,"1JTK7s9YVYywfm5XUH7RNhHJH1LshCaRFR","bf7413e8df4e7a34ce9dc13e2f2648783ec54adb"],[73,"12VVRNPi4SJqUTsp6FmqDqY5sGosDtysn4","105b7f253f0ebd7843adaebbd805c944bfb863e4"],[74,"1FWGcVDK3JGzCC3WtkYetULPszMaK2Jksv","9f1adb20baeacc38b3f49f3df6906a0e48f2df3d"],[75,"1J36UjUByGroXcCvmj13U6uwaVv9caEeAt","badf8b0d34289e679ec65c6c61d3a974353be5cf"],[76,"1DJh2eHFYQfACPmrvpyWc8MSTYKh7w9eRF","86f9fea5cdecf033161dd2f8f8560768ae0a6d14"],[77,"1Bxk4CQdqL9p22JEtDfdXMsng1XacifUtE","783c138ac81f6a52398564bb17455576e8525b29"],[78,"15qF6X51huDjqTmF9BJgxXdt1xcj46Jmhb","35003c3ef8759c92092f8488fca59a042859018c"],[79,"1ARk8HWJMn8js8tQmGUJeQHjSE7KRkn2t8","67671d5490c272e3ab7ddd34030d587738df33da"],[80,"1BCf6rHUW6m3iH2ptsvnjgLruAiPQQepLe","6fe5a36eef0684af0b91f3b6cfc972d68c4f6fab"],[81,"15qsCm78whspNQFydGJQk5rexzxTQopnHZ","351e605fac813965951ba433b7c2956bf8ad95ce"],[82,"13zYrYhhJxp6Ui1VV7pqa5WDhNWM45ARA","20d28d4e87543947c7e4913bcdceaa16e2f8f061"],[83,"14MdEb4eFcT3MVG5sPFG4jGLuHJSnt1Dk2","24cef184714bbd030833904f5265c9c3e12a95a2"],[84,"1CMq3SvFcVEcpLMuuH8PUcNiqsK1oicG2D","7c99ce73e19f9fbfcce4825ae88261e2b0b0b040"],[85,"1Kh22PvXERd2xpTQk3ur6pPEqFeckCJfAr","cd03c1e6268ce9b89e3c3eeab8d0f1b6e8cac281"],[86,"1K3x5L6G57Y494fDqBfrojD28UJv4s5JcK","c60111ed3d63b49665747b0e31eb382da5193535"],[87,"1PxH3K1Shdjb7gSEoTX7UPDZ6SH4qGPrvq","fbc708d671c03e26661b9c08f77598a529858b5e"],[88,"16AbnZjZZipwHMkYKBSfswGWKDmXHjEpSf","38a968fdfb457654c51bcfc4f9174d6ee487bb41"],[89,"19QciEHbGVNY4hrhfKXmcBBCrJSBZ6TaVt","5c3862203d1e44ab3af441503e22db97b1c5097e"],[90,"1L12FHH2FHjvTviyanuiFVfmzCy46RRATU","d06b6e206691295ec345782d7ea0686969d8674b"],[91,"1EzVHtmbN4fs4MiNk3ppEnKKhsmXYJ4s74","9978f61b92d16c5f1a463a0995df70da1f7a7d2a"],[92,"1AE8NzzgKE7Yhz7BWtAcAAxiFMbPo82NB5","6534b31208fe6e100d29f9c9c75aac8bf06fbb38"],[93,"17Q7tuG2JwFFU9rXVj3uZqRtioH3mx2Jad","463013cd41279f2fd0c31d0a16db3972bfffac8d"],[94,"1K6xGMUbs6ZTXBnhw1pippqwK6wjBWtNpL","c6927a00970d0165327d0a6db7950f05720c295c"],[95,"19eVSDuizydXxhohGh8Ki9WY9KsHdSwoQ","5ed822125365274262191d2b77e88d436dd56d88"],[96,"15ANYzzCp5BFHcCnVFzXqyibpzgPLWaD8b","2da63cbd251d23c7b633cb287c09e6cf888b3fe4"],[97,"18ywPwj39nGjqBrQJSzZVq2izR12MDpDr8","578d94dc6f40fff35f91f6fba9b71c46b361dff2"],[98,"1CaBVPrwUxbQYYswu32w7Mj4HR4maNoJSX","7eefddd979a1d6bb6f29757a1f463579770ba566"],[99,"1JWnE6p6UN7ZJBN7TtcbNDoRcjFtuDWoNL","c01bf430a97cbcdaedddba87ef4ea21c456cebdb"],[100,"1KCgMv8fo2TPBpddVi9jqmMmcne9uSNJ5F","c7a7b23f6bd98b8aaf527beb724dda9460b1bc6e"],[101,"1CKCVdbDJasYmhswB6HKZHEAnNaDpK7W4n","7c1a77205c03b9909663b2034faa0b544e6bc96b"],[102,"1PXv28YxmYMaB8zxrKeZBW8dt2HK7RkRPX","f72b812932f6d7102233971d65cec0a22b89e136"],[103,"1AcAmB6jmtU6AiEcXkmiNE9TNVPsj9DULf","695fd6dcf33f47166b25de968b2932b351b0afc4"],[104,"1EQJvpsmhazYCcKX5Au6AZmZKRnzarMVZu","93022af9a38f3ebb0c3f15dd1c83f8fadaf64e74"],[105,"1CMjscKB3QW7SDyQ4c3C3DEUHiHRhiZVib","7c957db6fdd0733bb83bc6d6d747711263ba50b0"],[106,"18KsfuHuzQaBTNLASyj15hy4LuqPUo1FNB","505aaa63a5e209dfb90cee683a8e227a8c278e47"],[107,"15EJFC5ZTs9nhsdvSUeBXjLAuYq3SWaxT","2e644e46b042ffa86da35c54d7275f1abe6d4911"],[108,"1HB1iKUqeffnVsvQsbpC6dNi1XKbyNuqao","b166c44f12c7fc565f37ff6288ee64e0f0ec9a0b"],[109,"1GvgAXVCbA8FBjXfWiAms4ytFeJcKsoyhL","aeb0a0197442d4ade8ef41442d557b0e22b85ac0"],[110,"12JzYkkN76xkwvcPT6AWKZtGX6w2LAgsJg","0e5f3c406397442996825fd395543514fd06f207"],[111,"1824ZJQ7nKJ9QFTRBqn7z7dHV5EGpzUpH3","4cfc43fe12a330c8164251e38c0c0c3c84cf86f6"],[112,"18A7NA9FTsnJxWgkoFfPAFbQzuQxpRtCos","4e81efec43c5195aeca0e3877664330418b8e48e"],[113,"1NEGn21dUDDeqFQ63xb2SpgUuXuBLA4WT4","ed673389e4b12925316f9166d56d701829e53cf8"],[114,"174SNxfqpdMGYy5YQcfLbSTK3MRNZEePoy","42773005f9594cd16b10985d428418acb7f352ec"],[115,"1NLbHuJebVwUZ1XqDjsAyfTRUPwDQbemfv","ea0f2b7576bd098921fce9bfebe37f6383e639a4"],[116,"1MnJ6hdhvK37VLmqcdEwqC3iFxyWH2PHUV","e3f381c34a20da049779b44cae0417c7fb2898d0"],[117,"1KNRfGWw7Q9Rmwsc6NT5zsdvEb9M2Wkj5Z","c97f9591e28687be1c4d972e25be7c372a3221b4"],[118,"1PJZPzvGX19a7twf5HyD2VvNiPdHLzm9F6","f4a4e1c11a5bbbd2fc139d221825407c66e0b8b4"],[119,"1GuBBhf61rnvRe4K8zu8vdQB3kHzwFqSy7","ae6804b35c82f47f8b0a42d8c5e514fe5ef0a883"],[120,"17s2b9ksz5y7abUm92cHwG8jEPCzK3dLnT","4b46e10a541aeec6be3fac709c256fb7da69308e"],[121,"1GDSuiThEV64c166LUFC9uDcVdGjqkxKyh","a6e4818537e42f7b3f021daa810367dad4dda16f"],[122,"1Me3ASYt5JCTAK2XaC32RMeH34PdprrfDx","e263b62ea294b9650615a13b926e75944c823990"],[123,"1CdufMQL892A69KXgv6UNBD17ywWqYpKut","7fa4515066ba6905f894b2078f9af7b1379169cf"],[124,"1BkkGsX9ZM6iwL3zbqs7HWBV7SvosR6m8N","75f74467ce7214f1767406d5ed12012aa523c48e"],[125,"1PXAyUB8ZoH3WD8n5zoAthYjN15yN5CVq5","f7079256aa027dc437cbb539f955472416725fc8"],[126,"1AWCLZAjKbV1P7AHvaPNCKiB7ZWVDMxFiz","683ea8a1ef06eada90556017d44323b5c04e00f1"],[127,"1G6EFyBRU86sThN3SSt3GrHu1sA7w7nzi4","a58708aa98ad35c889bb36d8049bf9e9cacfd02a"],[128,"1MZ2L1gFrCtkkn6DnTT2e4PFUTHw9gNwaj","e170ef514689d7230da362a0c121a07723550512"],[129,"1Hz3uv3nNZzBVMXLGadCucgjiCs5W9vaGz","ba4c2748360a6b66263e11d1dc8658463ca5ff18"],[130,"1Fo65aKq8s8iquMt6weF1rku1moWVEd5Ua","a24922852051a9002ebf4c864a55acb75bb4cf75"],[131,"16zRPnT8znwq42q7XeMkZUhb1bKqgRogyy","41b4b36a6c036568972380177eca2916cacd71de"],[132,"1KrU4dHE5WrW8rhWDsTRjR21r8t3dsrS3R","cecd3ca4319651bd3afd1e23ab66e111ed38d16d"],[133,"17uDfp5r4n441xkgLFmhNoSW1KWp6xVLD","014e15e4ea6da460cc7835e262676baa37988e4f"],[134,"13A3JrvXmvg5w9XGvyyR4JEJqiLz8ZySY3","17a5ebfaf62e73f149e33ba674836801f13a80b9"],[135,"16RGFo6hjq9ym6Pj7N5H7L1NR1rVPJyw2v","3b6f58a75a54bfd85d1bc6c51180fdc732992326"],[136,"1UDHPdovvR985NrWSkdWQDEQ1xuRiTALq","05257be4b57ee43fc09762d5d3a9ad4a6e1a0364"],[137,"15nf31J46iLuK1ZkTnqHo7WgN5cARFK3RA","3482f8986e13c018692053a784481c63a3554c9c"],[138,"1Ab4vzG6wEQBDNQM1B2bvUz4fqXXdFk2WT","692a8e583866fc9056f5c61a45969fb9d868a08c"],[139,"1Fz63c775VV9fNyj25d9Xfw3YHE6sKCxbt","a45dae9cd5d3fde21e5aa9a95367d107267b3b8a"],[140,"1QKBaU6WAeycb3DbKbLBkX7vJiaS8r42Xo","ffbb35a7bb9bbe16c1aa2534f7ff11d59c8e3d1a"],[141,"1CD91Vm97mLQvXhrnoMChhJx4TP9MaQkJo","7af50f73fd580f1713af3a6f9c5de49643ec6fc6"],[142,"15MnK2jXPqTMURX4xC3h4mAZxyCcaWWEDD","2fcea55e6d027a2ba7c7ebe95eedf47766730fe2"],[143,"13N66gCzWWHEZBxhVxG18P8wyjEWF9Yoi1","19ed3e03d19ddcedd5fa86543be820b3a7951650"],[144,"1NevxKDYuDcCh1ZMMi6ftmWwGrZKC6j7Ux","ed87120066e244ff5331d5f8625873d7a3acc39c"],[145,"19GpszRNUej5yYqxXoLnbZWKew3KdVLkXg","5abf369388deb8072741b4eb43ef10fa9388a729"],[146,"1M7ipcdYHey2Y5RZM34MBbpugghmjaV89P","dca7ebfb78ce21884300f133d89244bc4b1b756f"],[147,"18aNhurEAJsw6BAgtANpexk5ob1aGTwSeL","5318b9d7fcc93873f768725eb68ba2c924bb07ee"],[148,"1FwZXt6EpRT7Fkndzv6K4b4DFoT4trbMrV","a3e3612e586fd206efb8eee6ccd58318e182829a"],[149,"1CXvTzR6qv8wJ7eprzUKeWxyGcHwDYP1i2","7e827e3b90da24c2a15f7b67e3bbece39955a5d0"],[150,"1MUJSJYtGPVGkBCTqGspnxyHahpt5Te8jy","e08c4d3bc9cf2b3e2cb88de2bfaa4fe8c7aa3f24"],[151,"13Q84TNNvgcL3HJiqQPvyBb9m4hxjS3jkV","1a4fb632f0de0c53a0a31d57f840a19e56c645ee"],[152,"1LuUHyrQr8PKSvbcY1v1PiuGuqFjWpDumN","da56cd815fa2f0d6a4ce6d25ed7b1a01d9f9bc6b"],[153,"18192XpzzdDi2K11QVHR7td2HcPS6Qs5vg","4ccf94a1b0efd63cddeee0ef5eee5ebe720cfcbf"],[154,"1NgVmsCCJaKLzGyKLFJfVequnFW9ZvnMLN","edd2e206825fa8949d1304cd82c08d64b222f2eb"],[155,"1AoeP37TmHdFh8uN72fu9AqgtLrUwcv2wJ","6b8b7830f73c5bf9e8beb9f161ad82b3bde992e4"],[156,"1FTpAbQa4h8trvhQXjXnmNhqdiGBd1oraE","9ea3f29aaedf7da10b1488934c50a39e271b0b64"],[157,"14JHoRAdmJg3XR4RjMDh6Wed6ft6hzbQe9","242d790e5a168043c76f0539fd894b73ee67b3b3"],[158,"19z6waranEf8CcP8FqNgdwUe1QRxvUNKBG","628dacebb0faa7f81670e174ca4c8a95a7e37029"],[159,"14u4nA5sugaswb6SZgn5av2vuChdMnD9E5","2ac1295b4e54b3f15bb0a99f84018d2082495645"],[160,"1NBC8uXJy1GiJ6drkiZa1WuKn51ps7EPTv","e84818e1bf7f699aa6e28ef9edfb582099099292"]];
+const API="https://blockchain.info/balance?active=";
+const CHUNK=40, GAP=1500;
+const SNAP={"1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH":{"bal":0,"n":199},"1CUNEBjYrCn2y1SdiUMohaKUi4wpP326Lb":{"bal":0,"n":12},"19ZewH8Kk1PDbSNdJ97FP4EiCjTRaZMZQA":{"bal":0,"n":4},"1EhqbyUMvvs7BfL8goY6qcPbD6YKfPqb7e":{"bal":0,"n":4},"1E6NuFjCi27W5zoXg8TRdcSRq84zJeBW3k":{"bal":0,"n":2},"1PitScNLyp2HCygzadCh7FveTnfmpPbfp8":{"bal":0,"n":6},"1M92tSqNmQLYw33fuBvjmeadirh1ysMBxK":{"bal":0,"n":2},"1CQFwcjw1dwhtkVWBttNLDtqL7ivBonGPV":{"bal":0,"n":6},"1LeBZP5QCwwgXRtmVUvTVrraqPUokyLHqe":{"bal":0,"n":4},"1PgQVLmst3Z314JrQn5TNiys8Hc38TcXJu":{"bal":0,"n":2},"1DBaumZxUkM4qMQRt2LVWyFJq5kDtSZQot":{"bal":0,"n":4},"1Pie8JkxBT6MGPz9Nvi3fsPkr2D8q3GBc1":{"bal":0,"n":6},"1ErZWg5cFCe4Vw5BzgfzB74VNLaXEiEkhk":{"bal":0,"n":2},"1QCbW9HWnwQWiQqVo5exhAnmfqKRrCRsvW":{"bal":0,"n":2},"1BDyrQ6WoF8VN3g9SAS1iKZcPzFfnDVieY":{"bal":0,"n":4},"1HduPEXZRdG26SUT5Yk83mLkPyjnZuJ7Bm":{"bal":0,"n":2},"1GnNTmTVLZiqQfLbAdp9DVdicEnB5GoERE":{"bal":0,"n":2},"1NWmZRpHH4XSPwsW6dsS3nrNWfL1yrJj4w":{"bal":0,"n":2},"1HsMJxNiV7TLxmoF6uJNkydxPFDog4NQum":{"bal":0,"n":4},"14oFNXucftsHiUMY8uctg6N487riuyXs4h":{"bal":0,"n":8},"1CfZWK1QTQE3eS9qn61dQjV89KDjZzfNcv":{"bal":0,"n":2},"1rSnXMr63jdCuegJFuidJqWxUPV7AtUf7":{"bal":0,"n":2},"15JhYXn6Mx3oF4Y7PcTAv2wVVAuCFFQNiP":{"bal":0,"n":2},"1JVnST957hGztonaWK6FougdtjxzHzRMMg":{"bal":0,"n":2},"128z5d7nN7PkCuX5qoA4Ys6pmxUYnEy86k":{"bal":0,"n":2},"12jbtzBb54r97TCwW3G1gCFoumpckRAPdY":{"bal":0,"n":2},"19EEC52krRUK1RkUAEZmQdjTyHT7Gp1TYT":{"bal":0,"n":2},"1LHtnpd8nU5VHEMkG2TMYYNUjjLc992bps":{"bal":0,"n":4},"1LhE6sCTuGae42Axu1L1ZB7L96yi9irEBE":{"bal":0,"n":2},"1FRoHA9xewq7DjrZ1psWJVeTer8gHRqEvR":{"bal":0,"n":2},"187swFMjz1G54ycVU56B7jZFHFTNVQFDiu":{"bal":0,"n":2},"1PWABE7oUahG2AFFQhhvViQovnCr4rEv7Q":{"bal":0,"n":2},"1PWCx5fovoEaoBowAvF5k91m2Xat9bMgwb":{"bal":0,"n":2},"1Be2UF9NLfyLFbtm3TCbmuocc9N1Kduci1":{"bal":0,"n":2},"14iXhn8bGajVWegZHJ18vJLHhntcpL4dex":{"bal":0,"n":2},"1HBtApAFA9B2YZw3G2YKSMCtb3dVnjuNe2":{"bal":0,"n":2},"122AJhKLEfkFBaGAd84pLp1kfE7xK3GdT8":{"bal":0,"n":8},"1EeAxcprB2PpCnr34VfZdFrkUWuxyiNEFv":{"bal":0,"n":2},"1L5sU9qvJeuwQUdt4y1eiLmquFxKjtHr3E":{"bal":0,"n":2},"1E32GPWgDyeyQac4aJxm9HVoLrrEYPnM4N":{"bal":0,"n":2},"1PiFuqGpG8yGM5v6rNHWS3TjsG6awgEGA1":{"bal":0,"n":2},"1CkR2uS7LmFwc3T2jV8C1BhWb5mQaoxedF":{"bal":0,"n":2},"1NtiLNGegHWE3Mp9g2JPkgx6wUg4TW7bbk":{"bal":0,"n":2},"1F3JRMWudBaj48EhwcHDdpeuy2jwACNxjP":{"bal":0,"n":2},"1Pd8VvT49sHKsmqrQiP61RsVwmXCZ6ay7Z":{"bal":0,"n":4},"1DFYhaB2J9q1LLZJWKTnscPWos9VBqDHzv":{"bal":0,"n":2},"12CiUhYVTTH33w3SPUBqcpMoqnApAV4WCF":{"bal":0,"n":2},"1MEzite4ReNuWaL5Ds17ePKt2dCxWEofwk":{"bal":0,"n":4},"1NpnQyZ7x24ud82b7WiRNvPm6N8bqGQnaS":{"bal":0,"n":3},"15z9c9sVpu6fwNiK7dMAFgMYSK4GqsGZim":{"bal":0,"n":2},"15K1YKJMiJ4fpesTVUcByoz334rHmknxmT":{"bal":0,"n":3},"1KYUv7nSvXx4642TKeuC2SNdTk326uUpFy":{"bal":0,"n":5},"1LzhS3k3e9Ub8i2W1V8xQFdB8n2MYCHPCa":{"bal":0,"n":6},"17aPYR1m6pVAacXg1PTDDU7XafvK1dxvhi":{"bal":0,"n":14},"15c9mPGLku1HuW9LRtBf4jcHVpBUt8txKz":{"bal":0,"n":10},"1Dn8NF8qDyyfHMktmuoQLGyjWmZXgvosXf":{"bal":0,"n":5},"1HAX2n9Uruu9YDt4cqRgYcvtGvZj1rbUyt":{"bal":0,"n":5},"1Kn5h2qpgw9mWE5jKpk8PP4qvvJ1QVy8su":{"bal":0,"n":5},"1AVJKwzs9AskraJLGHAZPiaZcrpDr1U6AB":{"bal":0,"n":5},"1Me6EfpwZK5kQziBwBfvLiHjaPGxCKLoJi":{"bal":0,"n":7},"1NpYjtLira16LfGbGwZJ5JbDPh3ai9bjf4":{"bal":0,"n":10},"16jY7qLJnxb7CHZyqBP8qca9d51gAjyXQN":{"bal":0,"n":17},"18ZMbwUFLMHoZBbfpCjUJQTCMCbktshgpe":{"bal":0,"n":11},"13zb1hQbWVsc2S7ZTZnP2G4undNNpdh5so":{"bal":0,"n":50},"1BY8GQbnueYofwSuFAT3USAhGjPrkxDdW9":{"bal":0,"n":13},"1MVDYgVaSN6iKKEsbzRUAYFrYJadLYZvvZ":{"bal":0,"n":29},"19vkiEajfhuZ8bs8Zu2jgmC6oqZbWqhxhG":{"bal":0,"n":26},"19YZECXj3SxEZMoUeJ1yiPsw8xANe7M7QR":{"bal":0,"n":7},"1PWo3JeB9jrGwfHDNpdGK54CRas7fsVzXU":{"bal":710195118,"n":71},"1JTK7s9YVYywfm5XUH7RNhHJH1LshCaRFR":{"bal":720014379,"n":6},"12VVRNPi4SJqUTsp6FmqDqY5sGosDtysn4":{"bal":730013849,"n":6},"1FWGcVDK3JGzCC3WtkYetULPszMaK2Jksv":{"bal":740004977,"n":6},"1J36UjUByGroXcCvmj13U6uwaVv9caEeAt":{"bal":0,"n":5},"1DJh2eHFYQfACPmrvpyWc8MSTYKh7w9eRF":{"bal":760000000,"n":3},"1Bxk4CQdqL9p22JEtDfdXMsng1XacifUtE":{"bal":770002426,"n":5},"15qF6X51huDjqTmF9BJgxXdt1xcj46Jmhb":{"bal":780000000,"n":3},"1ARk8HWJMn8js8tQmGUJeQHjSE7KRkn2t8":{"bal":790000000,"n":3},"1BCf6rHUW6m3iH2ptsvnjgLruAiPQQepLe":{"bal":0,"n":5},"15qsCm78whspNQFydGJQk5rexzxTQopnHZ":{"bal":810001500,"n":4},"14MdEb4eFcT3MVG5sPFG4jGLuHJSnt1Dk2":{"bal":830002046,"n":5},"1CMq3SvFcVEcpLMuuH8PUcNiqsK1oicG2D":{"bal":840001500,"n":4},"1Kh22PvXERd2xpTQk3ur6pPEqFeckCJfAr":{"bal":0,"n":5},"1K3x5L6G57Y494fDqBfrojD28UJv4s5JcK":{"bal":860000000,"n":3},"1PxH3K1Shdjb7gSEoTX7UPDZ6SH4qGPrvq":{"bal":870000000,"n":3},"19QciEHbGVNY4hrhfKXmcBBCrJSBZ6TaVt":{"bal":890000000,"n":3},"1L12FHH2FHjvTviyanuiFVfmzCy46RRATU":{"bal":0,"n":7},"1EzVHtmbN4fs4MiNk3ppEnKKhsmXYJ4s74":{"bal":910000000,"n":3},"1AE8NzzgKE7Yhz7BWtAcAAxiFMbPo82NB5":{"bal":920000000,"n":3},"17Q7tuG2JwFFU9rXVj3uZqRtioH3mx2Jad":{"bal":930000000,"n":3},"1K6xGMUbs6ZTXBnhw1pippqwK6wjBWtNpL":{"bal":940000000,"n":3},"15ANYzzCp5BFHcCnVFzXqyibpzgPLWaD8b":{"bal":960000600,"n":4},"18ywPwj39nGjqBrQJSzZVq2izR12MDpDr8":{"bal":970002613,"n":4},"1CaBVPrwUxbQYYswu32w7Mj4HR4maNoJSX":{"bal":980000000,"n":3},"1KCgMv8fo2TPBpddVi9jqmMmcne9uSNJ5F":{"bal":0,"n":9},"1CKCVdbDJasYmhswB6HKZHEAnNaDpK7W4n":{"bal":1010000000,"n":3},"1PXv28YxmYMaB8zxrKeZBW8dt2HK7RkRPX":{"bal":1020000000,"n":3},"1AcAmB6jmtU6AiEcXkmiNE9TNVPsj9DULf":{"bal":1030000000,"n":3},"1EQJvpsmhazYCcKX5Au6AZmZKRnzarMVZu":{"bal":1040001600,"n":5},"1CMjscKB3QW7SDyQ4c3C3DEUHiHRhiZVib":{"bal":0,"n":5},"18KsfuHuzQaBTNLASyj15hy4LuqPUo1FNB":{"bal":1060000000,"n":3},"1HB1iKUqeffnVsvQsbpC6dNi1XKbyNuqao":{"bal":1080000000,"n":3},"1GvgAXVCbA8FBjXfWiAms4ytFeJcKsoyhL":{"bal":1090010500,"n":4},"12JzYkkN76xkwvcPT6AWKZtGX6w2LAgsJg":{"bal":0,"n":11},"1824ZJQ7nKJ9QFTRBqn7z7dHV5EGpzUpH3":{"bal":1110010000,"n":4},"174SNxfqpdMGYy5YQcfLbSTK3MRNZEePoy":{"bal":1140000000,"n":3},"1NLbHuJebVwUZ1XqDjsAyfTRUPwDQbemfv":{"bal":0,"n":9},"1MnJ6hdhvK37VLmqcdEwqC3iFxyWH2PHUV":{"bal":1160001210,"n":4},"1KNRfGWw7Q9Rmwsc6NT5zsdvEb9M2Wkj5Z":{"bal":1170000000,"n":3},"1PJZPzvGX19a7twf5HyD2VvNiPdHLzm9F6":{"bal":1180000661,"n":4},"17s2b9ksz5y7abUm92cHwG8jEPCzK3dLnT":{"bal":0,"n":5},"1GDSuiThEV64c166LUFC9uDcVdGjqkxKyh":{"bal":1210000000,"n":3},"1Me3ASYt5JCTAK2XaC32RMeH34PdprrfDx":{"bal":1220000000,"n":3},"1CdufMQL892A69KXgv6UNBD17ywWqYpKut":{"bal":1230000000,"n":3},"1BkkGsX9ZM6iwL3zbqs7HWBV7SvosR6m8N":{"bal":1240000000,"n":3},"1PXAyUB8ZoH3WD8n5zoAthYjN15yN5CVq5":{"bal":0,"n":8},"1AWCLZAjKbV1P7AHvaPNCKiB7ZWVDMxFiz":{"bal":1260000000,"n":3},"1G6EFyBRU86sThN3SSt3GrHu1sA7w7nzi4":{"bal":1270000000,"n":3},"1MZ2L1gFrCtkkn6DnTT2e4PFUTHw9gNwaj":{"bal":1280000000,"n":3},"1Hz3uv3nNZzBVMXLGadCucgjiCs5W9vaGz":{"bal":1290000000,"n":3},"1Fo65aKq8s8iquMt6weF1rku1moWVEd5Ua":{"bal":0,"n":15},"16zRPnT8znwq42q7XeMkZUhb1bKqgRogyy":{"bal":1310000000,"n":3},"1KrU4dHE5WrW8rhWDsTRjR21r8t3dsrS3R":{"bal":1320000000,"n":3},"17uDfp5r4n441xkgLFmhNoSW1KWp6xVLD":{"bal":1330000000,"n":3},"13A3JrvXmvg5w9XGvyyR4JEJqiLz8ZySY3":{"bal":1340000000,"n":3},"16RGFo6hjq9ym6Pj7N5H7L1NR1rVPJyw2v":{"bal":0,"n":10},"1UDHPdovvR985NrWSkdWQDEQ1xuRiTALq":{"bal":1360000000,"n":3},"15nf31J46iLuK1ZkTnqHo7WgN5cARFK3RA":{"bal":1370000000,"n":3},"1Ab4vzG6wEQBDNQM1B2bvUz4fqXXdFk2WT":{"bal":1380000000,"n":3},"1Fz63c775VV9fNyj25d9Xfw3YHE6sKCxbt":{"bal":1390000000,"n":3},"1QKBaU6WAeycb3DbKbLBkX7vJiaS8r42Xo":{"bal":1400002240,"n":8},"1CD91Vm97mLQvXhrnoMChhJx4TP9MaQkJo":{"bal":1410014846,"n":5},"13N66gCzWWHEZBxhVxG18P8wyjEWF9Yoi1":{"bal":1430000000,"n":3},"1NevxKDYuDcCh1ZMMi6ftmWwGrZKC6j7Ux":{"bal":1440000000,"n":3},"19GpszRNUej5yYqxXoLnbZWKew3KdVLkXg":{"bal":1450000600,"n":6},"1M7ipcdYHey2Y5RZM34MBbpugghmjaV89P":{"bal":1460000000,"n":3},"18aNhurEAJsw6BAgtANpexk5ob1aGTwSeL":{"bal":1470000000,"n":3},"1FwZXt6EpRT7Fkndzv6K4b4DFoT4trbMrV":{"bal":1480000000,"n":3},"1CXvTzR6qv8wJ7eprzUKeWxyGcHwDYP1i2":{"bal":1490001000,"n":4},"1MUJSJYtGPVGkBCTqGspnxyHahpt5Te8jy":{"bal":1500001600,"n":7},"13Q84TNNvgcL3HJiqQPvyBb9m4hxjS3jkV":{"bal":1510001000,"n":4},"1LuUHyrQr8PKSvbcY1v1PiuGuqFjWpDumN":{"bal":1520001000,"n":4},"18192XpzzdDi2K11QVHR7td2HcPS6Qs5vg":{"bal":1530001000,"n":4},"1NgVmsCCJaKLzGyKLFJfVequnFW9ZvnMLN":{"bal":1540001000,"n":4},"1AoeP37TmHdFh8uN72fu9AqgtLrUwcv2wJ":{"bal":1550011600,"n":8},"14JHoRAdmJg3XR4RjMDh6Wed6ft6hzbQe9":{"bal":1570001000,"n":4},"19z6waranEf8CcP8FqNgdwUe1QRxvUNKBG":{"bal":1580001000,"n":4},"14u4nA5sugaswb6SZgn5av2vuChdMnD9E5":{"bal":1590002600,"n":6},"1NBC8uXJy1GiJ6drkiZa1WuKn51ps7EPTv":{"bal":1600123082,"n":15},"16AbnZjZZipwHMkYKBSfswGWKDmXHjEpSf":{"bal":880000000,"n":3},"1JWnE6p6UN7ZJBN7TtcbNDoRcjFtuDWoNL":{"bal":991257338,"n":7},"18A7NA9FTsnJxWgkoFfPAFbQzuQxpRtCos":{"bal":1120000000,"n":3},"1GuBBhf61rnvRe4K8zu8vdQB3kHzwFqSy7":{"bal":1190000000,"n":3},"15MnK2jXPqTMURX4xC3h4mAZxyCcaWWEDD":{"bal":1420000000,"n":3},"1FTpAbQa4h8trvhQXjXnmNhqdiGBd1oraE":{"bal":1560001000,"n":4}};
+const SNAP_DATE="22 Oct 2026";
+const state=Object.assign({},SNAP); // addr -> {bal(sat), n}
+let filter="all";
+const $=id=>document.getElementById(id);
+try{Object.assign(state,JSON.parse(localStorage.getItem("ledger-v1")||"{}"))}catch(e){}
+const save=()=>{try{localStorage.setItem("ledger-v1",JSON.stringify(state))}catch(e){}};
+const fmt=s=>(s/1e8).toFixed(8);
+const status=a=>!state[a]?"pending":state[a].bal>0?"funded":"empty";
+
+function esc(s){return s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+function render(){
+  const q=$("q").value.trim().toLowerCase();
+  let f=0,e=0,p=0,t=0,html="";
+  for(const [n,a,h] of ROWS){
+    const st=status(a);
+    if(st==="funded"){f++;t+=state[a].bal}else if(st==="empty")e++;else p++;
+    if(filter!=="all"&&filter!==st)continue;
+    if(q&&!(String(n)===q||a.toLowerCase().includes(q)||h.includes(q)))continue;
+    const bal=state[a]?fmt(state[a].bal):"–";
+    const label=st==="funded"?"Funded":st==="empty"?"Empty":"Unchecked";
+    html+=`<tr class="${st}"><td class="n">${n}</td>
+<td><button class="cp" data-c="${a}" title="Copy">${a}</button></td>
+<td><button class="cp h160" data-c="${h}" title="Copy">${h}</button></td>
+<td class="bal">${bal}</td><td><span class="pill">${label}</span></td>
+<td><a href="https://mempool.space/address/${a}" target="_blank" rel="noopener">view</a></td></tr>`;
+  }
+  $("tb").innerHTML=html||`<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:28px">No addresses match.</td></tr>`;
+  $("sF").textContent=f;$("sE").textContent=e;$("sP").textContent=p;$("sT").textContent=fmt(t);
+}
+function ingest(obj){
+  let c=0;
+  for(const [a,v] of Object.entries(obj)){
+    if(v&&typeof v.final_balance==="number"){state[a]={bal:v.final_balance,n:v.n_tx||0};c++}
+  }
+  save();render();return c;
+}
+$("tb").addEventListener("click",async ev=>{
+  const b=ev.target.closest(".cp");if(!b)return;
+  const v=b.dataset.c;
+  try{await navigator.clipboard.writeText(v);$("msg").textContent="Copied "+v}
+  catch(e){const r=document.createRange();r.selectNodeContents(b);const s=getSelection();s.removeAllRanges();s.addRange(r);$("msg").textContent="Selected, press copy"}
+});
+$("chips").addEventListener("click",ev=>{
+  const b=ev.target.closest(".chip");if(!b)return;
+  filter=b.dataset.f;
+  document.querySelectorAll(".chip").forEach(x=>x.setAttribute("aria-pressed",String(x===b)));
+  render();
+});
+$("q").addEventListener("input",render);
+
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+async function fetchChunk(addrs){
+  for(let attempt=0;attempt<4;attempt++){
+    const r=await fetch(API+addrs.join("|"));
+    if(r.status===429){await sleep(4000*(attempt+1));continue}
+    if(!r.ok)throw new Error("HTTP "+r.status);
+    return r.json();
+  }
+  throw new Error("Rate limited, try again in a minute");
+}
+$("refresh").addEventListener("click",async()=>{
+  const btn=$("refresh");btn.disabled=true;
+  const addrs=ROWS.map(r=>r[1]);let done=0;
+  try{
+    for(let i=0;i<addrs.length;i+=CHUNK){
+      ingest(await fetchChunk(addrs.slice(i,i+CHUNK)));
+      done=Math.min(i+CHUNK,addrs.length);
+      $("msg").textContent=`Checked ${done} of ${addrs.length}`;
+      if(done<addrs.length)await sleep(GAP);
+    }
+    $("msg").textContent=`Done. Updated ${new Date().toLocaleTimeString()}.`;
+  }catch(e){
+    $("msg").textContent="Live fetching failed ("+e.message+"). This page may be blocked from calling outside APIs. Use “Load balances by hand” below.";
+    $("imp").open=true;
+  }
+  btn.disabled=false;
+});
+$("apply").addEventListener("click",()=>{
+  const txt=$("paste").value.trim();if(!txt)return;
+  let n=0;
+  try{
+    // allow several JSON objects pasted back to back
+    const parts=txt.replace(/}\s*{/g,"}\n{").split("\n").filter(Boolean);
+    for(const p of parts)n+=ingest(JSON.parse(p));
+    $("msg").textContent=`Loaded ${n} addresses.`;
+  }catch(e){$("msg").textContent="That is not valid JSON. Paste the full response from each link."}
+});
+$("links").innerHTML=Array.from({length:Math.ceil(ROWS.length/CHUNK)},(_,k)=>{
+  const s=ROWS.slice(k*CHUNK,(k+1)*CHUNK);
+  return `<li><a href="${API+s.map(r=>r[1]).join("|")}" target="_blank" rel="noopener">#${s[0][0]} to #${s[s.length-1][0]}</a></li>`}).join("");
+render();
+$("msg").textContent="Snapshot of "+SNAP_DATE+" loaded.";
+</script>
+
+</body></html>
