@@ -1,0 +1,985 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Recovery Miner</title>
+<style>
+:root{--bg:#0b0f17;--card:#131a26;--card2:#18212f;--line:#243044;--txt:#e6edf6;--mut:#8a9ab3;--acc:#f7931a;--acc2:#ffb454;--ok:#3ddc97;--bad:#ff5d6c}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(1200px 600px at 20% -10%,#1b2540 0,transparent 60%),var(--bg);color:var(--txt);font:15px/1.45 system-ui,Segoe UI,Roboto,sans-serif;min-height:100vh}
+.wrap{max-width:1080px;margin:0 auto;padding:20px 16px 60px}
+header{display:flex;align-items:center;gap:14px;margin:6px 0 22px}
+.logo{width:44px;height:44px;border-radius:12px;background:linear-gradient(135deg,var(--acc),#c96a00);display:grid;place-items:center;font-weight:800;font-size:24px;color:#fff;box-shadow:0 6px 24px #f7931a44}
+h1{margin:0;font-size:28px;letter-spacing:.5px}
+h1 span{color:var(--acc)}
+.sub{color:var(--mut);font-size:13px}
+.badge{margin-left:auto;font-size:12px;padding:5px 10px;border-radius:99px;border:1px solid var(--line);color:var(--mut);background:var(--card)}
+.badge.run{color:var(--ok);border-color:#2a6b52}
+.grid{display:grid;gap:16px}
+.g2{grid-template-columns:1fr 1fr}
+@media(max-width:820px){.g2{grid-template-columns:1fr}}
+.card{background:linear-gradient(180deg,var(--card),var(--card2));border:1px solid var(--line);border-radius:16px;padding:18px}
+.card h2{margin:0 0 12px;font-size:13px;text-transform:uppercase;letter-spacing:1.2px;color:var(--mut);font-weight:600}
+label{display:block;font-size:13px;color:var(--mut);margin:12px 0 5px}
+input,select{width:100%;background:#0d131d;border:1px solid var(--line);color:var(--txt);padding:10px 12px;border-radius:10px;font:inherit;outline:none}
+input:focus,select:focus{border-color:var(--acc)}
+input[type=range]{padding:0;accent-color:var(--acc)}
+input[type=checkbox]{width:auto}
+.mono{font-family:ui-monospace,Consolas,Menlo,monospace}
+.row{display:flex;gap:10px;align-items:center}
+.row>*{flex:1}
+.row .fix{flex:0 0 auto}
+.hint{font-size:12px;color:var(--mut);margin-top:6px;word-break:break-all}
+.hint.ok{color:var(--ok)} .hint.bad{color:var(--bad)}
+.btns{display:flex;gap:10px;margin-top:16px}
+button{border:0;border-radius:12px;padding:13px 18px;font:inherit;font-weight:700;cursor:pointer;color:#fff;flex:1;transition:.15s}
+#startBtn{background:linear-gradient(135deg,var(--acc),#d77400)}
+#stopBtn{background:#2b3548}
+#testBtn{background:#1f2a3d;flex:0 0 auto;color:var(--mut)}
+button:disabled{opacity:.4;cursor:not-allowed}
+button:not(:disabled):hover{filter:brightness(1.12)}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+@media(max-width:820px){.stats{grid-template-columns:repeat(2,1fr)}}
+.stat{background:#0d131d;border:1px solid var(--line);border-radius:12px;padding:12px}
+.stat b{display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;color:var(--mut)}
+.stat span{display:block;font-size:20px;margin-top:4px;font-weight:700}
+.stat small{color:var(--mut);font-size:12px}
+.big span{color:var(--acc2);font-size:26px}
+canvas{width:100%;height:230px;display:block;background:#0d131d;border:1px solid var(--line);border-radius:12px}
+.bar{height:8px;background:#0d131d;border-radius:9px;overflow:hidden;border:1px solid var(--line);margin-top:6px}
+.bar i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--acc),var(--acc2))}
+#found{display:none;border-color:#2a6b52;background:linear-gradient(180deg,#10281f,#0f1f19)}
+#found h2{color:var(--ok)}
+.k{margin:8px 0 2px;font-size:12px;color:var(--mut)}
+.v{background:#07110d;border:1px solid #1f4a38;border-radius:10px;padding:10px;word-break:break-all;font-size:14px}
+#log{height:150px;overflow:auto;background:#0a0f17;border:1px solid var(--line);border-radius:10px;padding:10px;font-size:12px;color:#9fb0c8;white-space:pre-wrap}
+.block{border:1px solid var(--line);border-radius:12px;padding:2px 12px 12px;margin-top:14px;background:#0f1622;transition:.2s}
+.block h3{margin:10px 0 0;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--acc2)}
+.block.off{opacity:.38;filter:grayscale(1)}
+.block.off h3{color:var(--mut)}
+.hw{font-size:13px;margin:0 0 4px;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:#0d131d}
+.hw.ok{color:var(--ok);border-color:#2a6b52}.hw.no{color:#ffb454;border-color:#6b4a1a}
+.warn{font-size:12px;color:var(--mut);margin-top:14px}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="logo">₿</div>
+  <div><h1>Recovery <span>Miner</span></h1><div class="sub">WebGPU secp256k1 → HASH160 batch key search</div></div>
+  <div class="badge" id="badge">idle</div>
+</header>
+
+<div class="grid g2">
+  <div class="card">
+    <h2>Target</h2>
+    <label for="target">Bitcoin address (P2PKH <span class="mono">1…</span> / bech32 <span class="mono">bc1q…</span>) or HASH160 (40 hex)</label>
+    <input id="target" class="mono" spellcheck="false" autocomplete="off" placeholder="1BgGZ9tcN4rm9KBzDn7KprQz87SZ26SAMH  or  hash160 hex">
+    <div class="hint" id="targetInfo">Enter a target.</div>
+
+    <label for="bitsNum">Key range (bits): random key in [2<sup>b-1</sup>, 2<sup>b</sup>−1]</label>
+    <div class="row"><input id="bitsRange" type="range" min="1" max="160" value="66"><input id="bitsNum" class="fix mono" style="width:80px" type="number" min="1" max="255" value="66"></div>
+    <div class="hint mono" id="bitsInfo"></div>
+
+    <div class="row">
+      <div><label for="mode">Search mode</label>
+        <select id="mode"><option value="random">Random jumps</option><option value="seq">Sequential sweep</option></select></div>
+      <div><label for="backend">Backend</label>
+        <select id="backend"><option value="auto">Auto (GPU if found)</option><option value="cpu">CPU only</option></select></div>
+    </div>
+    <div class="hw" id="hwInfo" style="margin-top:14px">Checking hardware…</div>
+
+    <div class="block" id="gpuBlock">
+      <h3>GPU settings</h3>
+      <div class="row">
+        <div><label for="batch">Batch size (keys / inversion)</label>
+          <select id="batch"><option>8</option><option>16</option><option>32</option><option selected>64</option><option>128</option><option>256</option><option>512</option></select></div>
+        <div><label for="threads">GPU threads</label>
+          <select id="threads"><option>1024</option><option>2048</option><option>4096</option><option selected>8192</option><option>16384</option><option>32768</option></select></div>
+      </div>
+      <label for="rounds">Batches / thread / dispatch</label>
+      <div class="row"><input id="rounds" class="mono" type="number" min="1" max="4096" value="2"><label style="margin:0;display:flex;gap:6px;align-items:center;flex:0 0 auto"><input type="checkbox" id="auto" checked> auto (~250 ms)</label></div>
+    </div>
+
+    <div class="block" id="cpuBlock">
+      <h3>CPU settings (JavaScript workers)</h3>
+      <div class="row">
+        <div><label for="cpuWorkers">Worker threads</label><select id="cpuWorkers"></select></div>
+        <div><label for="cpuBatch">Batch size (keys / inversion)</label>
+          <select id="cpuBatch"><option>16</option><option>32</option><option selected>64</option><option>128</option><option>256</option></select></div>
+      </div>
+    </div>
+    <div class="btns">
+      <button id="startBtn">▶ Start</button>
+      <button id="stopBtn" disabled>■ Stop</button>
+      <button id="testBtn" title="Verify the GPU kernel against a known key">Self-test</button>
+    </div>
+    <div class="warn">Compressed public keys only. Dispatches are auto-tuned to ~250&nbsp;ms so the tab stays responsive.</div>
+  </div>
+
+  <div class="card">
+    <h2>Performance</h2>
+    <div class="stats">
+      <div class="stat big"><b>Hashrate</b><span id="sRate">–</span><small id="sRate2">keys / s</small></div>
+      <div class="stat"><b>Average</b><span id="sAvg">–</span></div>
+      <div class="stat"><b>Peak</b><span id="sPeak">–</span></div>
+      <div class="stat"><b>Dispatch</b><span id="sDt">–</span><small id="sCfg"></small></div>
+      <div class="stat"><b>Keys checked</b><span id="sKeys">0</span></div>
+      <div class="stat"><b>Elapsed</b><span id="sTime">0:00</span></div>
+      <div class="stat"><b>Coverage</b><span id="sCov">0%</span></div>
+      <div class="stat"><b>Est. time</b><span id="sEta">–</span><small id="sEtaLbl"></small></div>
+    </div>
+    <div class="bar"><i id="bar"></i></div>
+    <div class="hint" id="gpuInfo">GPU: –</div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:16px">
+  <h2>Hashrate history</h2>
+  <canvas id="chart"></canvas>
+</div>
+
+<div class="card" id="found" style="margin-top:16px">
+  <h2>🎉 Private key found</h2>
+  <div class="k">Status</div><div class="v" id="fStatus"></div>
+  <div class="k">Private key (hex)</div><div class="v mono" id="fHex"></div>
+  <div class="k">WIF (compressed)</div><div class="v mono" id="fWif"></div>
+  <div class="k">How it was derived</div><div class="v mono" id="fCalc"></div>
+  <div class="btns"><button id="copyBtn" style="background:#1f6b4d">Copy hex</button></div>
+</div>
+
+<div class="card" style="margin-top:16px"><h2>Log</h2><div id="log" class="mono"></div></div>
+</div>
+
+<script id="main">
+// ==CORE==
+'use strict';
+/* ---------------- constants (shared between JS reference + WGSL) ---------------- */
+const SHA_K=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+const RMD_KL=[0x00000000,0x5A827999,0x6ED9EBA1,0x8F1BBCDC,0xA953FD4E];
+const RMD_KR=[0x50A28BE6,0x5C4DD124,0x6D703EF3,0x7A6D76E9,0x00000000];
+const RMD_RL=[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15, 7,4,13,1,10,6,15,3,12,0,9,5,2,14,11,8, 3,10,14,4,9,15,8,1,2,7,0,6,13,11,5,12, 1,9,11,10,0,8,12,4,13,3,7,15,14,5,6,2, 4,0,5,9,7,12,2,10,14,1,3,8,11,6,15,13];
+const RMD_RR=[5,14,7,0,9,2,11,4,13,6,15,8,1,10,3,12, 6,11,3,7,0,13,5,10,14,15,8,12,4,9,1,2, 15,5,1,3,7,14,6,9,11,8,12,2,10,0,4,13, 8,6,4,1,3,11,15,0,5,12,2,13,9,7,10,14, 12,15,10,4,1,5,8,7,6,2,13,14,0,3,9,11];
+const RMD_SL=[11,14,15,12,5,8,7,9,11,13,14,15,6,7,9,8, 7,6,8,13,11,9,7,15,7,12,15,9,11,7,13,12, 11,13,6,7,14,9,13,15,14,8,13,6,5,12,7,5, 11,12,14,15,14,15,9,8,9,14,5,6,8,6,5,12, 9,15,5,11,6,8,13,12,5,12,13,14,11,8,5,6];
+const RMD_SR=[8,9,9,11,13,15,15,5,7,7,8,11,14,14,12,6, 9,13,15,7,12,8,9,11,7,7,12,7,6,15,13,11, 9,7,15,11,8,6,6,14,12,13,5,14,13,13,7,5, 15,5,8,11,14,14,6,14,6,9,12,9,12,5,15,8, 8,5,12,9,12,5,14,6,8,13,6,5,15,13,11,11];
+
+/* ---------------- JS reference crypto ---------------- */
+function sha256(msg){
+  const len=msg.length, pl=((len+9+63)>>6)<<6, buf=new Uint8Array(pl); buf.set(msg); buf[len]=0x80;
+  const dv=new DataView(buf.buffer); dv.setUint32(pl-4,(len*8)>>>0); dv.setUint32(pl-8,Math.floor(len*8/4294967296));
+  const H=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  const w=new Uint32Array(64);
+  const rr=(x,n)=>((x>>>n)|(x<<(32-n)))>>>0;
+  for(let o=0;o<pl;o+=64){
+    for(let i=0;i<16;i++)w[i]=dv.getUint32(o+i*4);
+    for(let i=16;i<64;i++){const a=w[i-15],b=w[i-2];w[i]=(w[i-16]+(rr(a,7)^rr(a,18)^(a>>>3))+w[i-7]+(rr(b,17)^rr(b,19)^(b>>>10)))>>>0;}
+    let [a,b,c,d,e,f,g,h]=H;
+    for(let i=0;i<64;i++){
+      const t1=(h+(rr(e,6)^rr(e,11)^rr(e,25))+((e&f)^(~e&g))+SHA_K[i]+w[i])>>>0;
+      const t2=((rr(a,2)^rr(a,13)^rr(a,22))+((a&b)^(a&c)^(b&c)))>>>0;
+      h=g;g=f;f=e;e=(d+t1)>>>0;d=c;c=b;b=a;a=(t1+t2)>>>0;
+    }
+    [a,b,c,d,e,f,g,h].forEach((v,i)=>H[i]=(H[i]+v)>>>0);
+  }
+  const out=new Uint8Array(32),ov=new DataView(out.buffer); H.forEach((v,i)=>ov.setUint32(i*4,v)); return out;
+}
+function ripemd160(msg){
+  const len=msg.length, pl=((len+9+63)>>6)<<6, buf=new Uint8Array(pl); buf.set(msg); buf[len]=0x80;
+  const dv=new DataView(buf.buffer); dv.setUint32(pl-8,(len*8)>>>0,true); dv.setUint32(pl-4,Math.floor(len*8/4294967296),true);
+  const h=[0x67452301,0xEFCDAB89,0x98BADCFE,0x10325476,0xC3D2E1F0];
+  const rol=(x,n)=>((x<<n)|(x>>>(32-n)))>>>0;
+  const F=(r,x,y,z)=>{switch(r){case 0:return x^y^z;case 1:return(x&y)|(~x&z);case 2:return(x|~y)^z;case 3:return(x&z)|(y&~z);default:return x^(y|~z);}};
+  for(let o=0;o<pl;o+=64){
+    const x=[];for(let i=0;i<16;i++)x[i]=dv.getUint32(o+i*4,true);
+    let [al,bl,cl,dl,el]=h,[ar,br,cr,dr,er]=h;
+    for(let j=0;j<80;j++){
+      const r=j>>4;
+      let t=(rol((al+(F(r,bl,cl,dl)>>>0)+x[RMD_RL[j]]+RMD_KL[r])>>>0,RMD_SL[j])+el)>>>0;
+      al=el;el=dl;dl=rol(cl,10);cl=bl;bl=t;
+      t=(rol((ar+(F(4-r,br,cr,dr)>>>0)+x[RMD_RR[j]]+RMD_KR[r])>>>0,RMD_SR[j])+er)>>>0;
+      ar=er;er=dr;dr=rol(cr,10);cr=br;br=t;
+    }
+    const t=(h[1]+cl+dr)>>>0; h[1]=(h[2]+dl+er)>>>0; h[2]=(h[3]+el+ar)>>>0; h[3]=(h[4]+al+br)>>>0; h[4]=(h[0]+bl+cr)>>>0; h[0]=t;
+  }
+  const out=new Uint8Array(20),ov=new DataView(out.buffer); h.forEach((v,i)=>ov.setUint32(i*4,v,true)); return out;
+}
+const hash160=b=>ripemd160(sha256(b));
+const toHex=b=>Array.from(b,x=>x.toString(16).padStart(2,'0')).join('');
+const fromHex=s=>Uint8Array.from(s.match(/../g)||[],x=>parseInt(x,16));
+
+const P=0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2Fn;
+const N=0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141n;
+const GX=0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798n;
+const GY=0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8n;
+const mod=a=>{a%=P;return a<0n?a+P:a;};
+function modInv(a){let t=0n,nt=1n,r=P,nr=mod(a);while(nr){const q=r/nr;[t,nt]=[nt,t-q*nt];[r,nr]=[nr,r-q*nr];}return t<0n?t+P:t;}
+function ptAdd(a,b){
+  if(!a)return b; if(!b)return a;
+  let l;
+  if(a.x===b.x){ if(mod(a.y+b.y)===0n)return null; l=mod(3n*a.x*a.x*modInv(2n*a.y)); }
+  else l=mod((b.y-a.y)*modInv(b.x-a.x));
+  const x=mod(l*l-a.x-b.x); return {x,y:mod(l*(a.x-x)-a.y)};
+}
+function ptMul(k,p){let r=null,q=p;while(k>0n){if(k&1n)r=ptAdd(r,q);q=ptAdd(q,q);k>>=1n;}return r;}
+const G={x:GX,y:GY};
+function bigToBytes(v,n=32){const o=new Uint8Array(n);for(let i=n-1;i>=0;i--){o[i]=Number(v&0xffn);v>>=8n;}return o;}
+function pubCompressed(k){const p=ptMul(k,G);const o=new Uint8Array(33);o[0]=(p.y&1n)?3:2;o.set(bigToBytes(p.x),1);return o;}
+function keyHash160(k){return hash160(pubCompressed(k));}
+
+/* ---------------- base58 / bech32 ---------------- */
+const B58='123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+function b58enc(b){let n=0n;for(const x of b)n=(n<<8n)|BigInt(x);let s='';while(n>0n){s=B58[Number(n%58n)]+s;n/=58n;}for(const x of b){if(x)break;s='1'+s;}return s;}
+function b58dec(s){let n=0n;for(const c of s){const i=B58.indexOf(c);if(i<0)throw new Error('Invalid base58 character');n=n*58n+BigInt(i);}
+  let hex=n.toString(16);if(hex.length%2)hex='0'+hex;let b=n?fromHex(hex):new Uint8Array(0);let z=0;for(const c of s){if(c==='1')z++;else break;}
+  const o=new Uint8Array(z+b.length);o.set(b,z);return o;}
+const b58check=pl=>{const c=sha256(sha256(pl)).slice(0,4);const o=new Uint8Array(pl.length+4);o.set(pl);o.set(c,pl.length);return b58enc(o);};
+function bech32Decode(s){
+  if(s!==s.toLowerCase()&&s!==s.toUpperCase())throw new Error('Mixed-case bech32');
+  s=s.toLowerCase();const pos=s.lastIndexOf('1');if(pos<1||pos+7>s.length)throw new Error('Invalid bech32');
+  const CH='qpzry9x8gf2tvdw0s3jn54khce6mua7l';const hrp=s.slice(0,pos);const d=[];
+  for(const c of s.slice(pos+1)){const i=CH.indexOf(c);if(i<0)throw new Error('Invalid bech32 character');d.push(i);}
+  const G_=[0x3b6a57b2,0x26508e6d,0x1ea119fa,0x3d4233dd,0x2a1462b3];
+  let chk=1;const vals=[];for(const c of hrp)vals.push(c.charCodeAt(0)>>5);vals.push(0);for(const c of hrp)vals.push(c.charCodeAt(0)&31);
+  for(const v of vals.concat(d)){const b=chk>>>25;chk=((chk&0x1ffffff)<<5)^v;for(let i=0;i<5;i++)if((b>>i)&1)chk^=G_[i];chk>>>=0;}
+  const enc=chk===1?'bech32':chk===0x2bc830a3?'bech32m':null;if(!enc)throw new Error('Bad bech32 checksum');
+  const ver=d[0];let acc=0,bits=0;const out=[];
+  for(const v of d.slice(1,-6)){acc=(acc<<5)|v;bits+=5;while(bits>=8){bits-=8;out.push((acc>>bits)&255);}acc&=(1<<bits)-1;}
+  return {hrp,ver,enc,prog:Uint8Array.from(out)};
+}
+/* -> {hash:Uint8Array(20), kind:string} */
+function parseTarget(s){
+  s=s.trim(); if(!s)throw new Error('Enter a target.');
+  const h=s.replace(/^0x/i,'');
+  if(/^[0-9a-fA-F]{40}$/.test(h))return{hash:fromHex(h.toLowerCase()),kind:'raw HASH160'};
+  if(/^(bc|tb)1/i.test(s)){
+    const r=bech32Decode(s);
+    if(r.ver===0&&r.enc==='bech32'&&r.prog.length===20)return{hash:r.prog,kind:'P2WPKH (bech32)'};
+    if(r.ver===0&&r.prog.length===32)throw new Error('P2WSH is a script hash, not a key hash – cannot be searched.');
+    if(r.ver===1)throw new Error('Taproot (bc1p…) uses a different key format – not supported.');
+    throw new Error('Unsupported bech32 address type.');
+  }
+  const raw=b58dec(s); if(raw.length!==25)throw new Error('Wrong address length.');
+  const c=sha256(sha256(raw.slice(0,21))).slice(0,4);
+  for(let i=0;i<4;i++)if(c[i]!==raw[21+i])throw new Error('Address checksum is invalid.');
+  const v=raw[0];
+  if(v===0x00||v===0x6f)return{hash:raw.slice(1,21),kind:v===0?'P2PKH (mainnet)':'P2PKH (testnet)'};
+  if(v===0x05||v===0xc4)throw new Error('P2SH (3…) is a script hash, not a key hash – cannot be searched directly.');
+  throw new Error('Unsupported address version byte 0x'+v.toString(16));
+}
+const wif=k=>{const pl=new Uint8Array(34);pl[0]=0x80;pl.set(bigToBytes(k),1);pl[33]=1;return b58check(pl);};
+
+/* ---------------- precompute window table (4-bit windows, like the OpenCL kernel) ---------------- */
+function buildTable(){
+  const t=new Uint32Array(64*15*16);
+  const put=(o,v)=>{for(let i=0;i<8;i++)t[o+i]=Number((v>>BigInt(32*i))&0xffffffffn);};
+  let base=G;
+  for(let j=0;j<64;j++){
+    let cur=base;
+    for(let d=1;d<=15;d++){
+      const o=(j*15+d-1)*16; put(o,cur.x); put(o+8,cur.y);
+      if(d<15)cur=ptAdd(cur,base); else base=ptAdd(cur,base); // 15B + B = 16B
+    }
+  }
+  return t;
+}
+
+/* ---------------- WGSL kernel ---------------- */
+const hx=n=>'0x'+(n>>>0).toString(16).padStart(8,'0')+'u';
+const wArr=(name,a)=>`var<private> ${name}: array<u32,${a.length}> = array<u32,${a.length}>(${a.map(hx).join(',')});`;
+const limbsLE=v=>{const a=[];for(let i=0;i<8;i++)a.push(Number((v>>BigInt(32*i))&0xffffffffn));return a;};
+function wgsl(){return /* wgsl */`
+alias U = array<u32,8>;
+struct Pt { x: U, y: U, z: U }
+struct Params { k: array<vec4<u32>,2>, t: vec4<u32>, t4: u32, batch: u32, threads: u32, rounds: u32 }
+struct Res { found: atomic<u32>, tid: u32, idx: u32, pad: u32 }
+@group(0) @binding(0) var<uniform> prm: Params;
+@group(0) @binding(1) var<storage, read> tbl: array<u32>;
+@group(0) @binding(2) var<storage, read_write> scr: array<u32>;
+@group(0) @binding(3) var<storage, read_write> res: Res;
+
+${wArr('PM',limbsLE(P))}
+${wArr('GXL',limbsLE(GX))}
+${wArr('GYL',limbsLE(GY))}
+${wArr('KS',SHA_K)}
+${wArr('KL',RMD_KL)}
+${wArr('KR',RMD_KR)}
+${wArr('RL',RMD_RL)}
+${wArr('RR',RMD_RR)}
+${wArr('SL',RMD_SL)}
+${wArr('SR',RMD_SR)}
+
+fn rotr(x: u32, n: u32) -> u32 { return (x >> n) | (x << (32u - n)); }
+fn rol(x: u32, n: u32) -> u32 { return (x << n) | (x >> (32u - n)); }
+fn bswap(w: u32) -> u32 { return (w >> 24u) | ((w >> 8u) & 0x0000ff00u) | ((w << 8u) & 0x00ff0000u) | (w << 24u); }
+
+/* 32x32 -> 64 multiply (x = low, y = high) */
+fn mul32(a: u32, b: u32) -> vec2<u32> {
+  let a0 = a & 0xffffu; let a1 = a >> 16u; let b0 = b & 0xffffu; let b1 = b >> 16u;
+  let p00 = a0 * b0; let p01 = a0 * b1; let p10 = a1 * b0; let p11 = a1 * b1;
+  let mid = (p00 >> 16u) + (p01 & 0xffffu) + (p10 & 0xffffu);
+  return vec2<u32>(a * b, p11 + (p01 >> 16u) + (p10 >> 16u) + (mid >> 16u));
+}
+
+fn is_zero(a: U) -> bool { var o = 0u; for (var i = 0u; i < 8u; i++) { o = o | a[i]; } return o == 0u; }
+fn geq(a: U, b: U) -> bool {
+  for (var i = 0u; i < 8u; i++) {
+    let j = 7u - i;
+    if (a[j] > b[j]) { return true; }
+    if (a[j] < b[j]) { return false; }
+  }
+  return true;
+}
+fn usub(a: U, b: U) -> U {
+  var r: U; var br = 0u;
+  for (var i = 0u; i < 8u; i++) {
+    let d = a[i] - b[i]; var b2 = select(0u, 1u, a[i] < b[i]);
+    let d2 = d - br; b2 += select(0u, 1u, d < br);
+    r[i] = d2; br = b2;
+  }
+  return r;
+}
+fn uadd(a: U, b: U) -> U {
+  var r: U; var c = 0u;
+  for (var i = 0u; i < 8u; i++) {
+    let s1 = a[i] + b[i]; var c2 = select(0u, 1u, s1 < b[i]);
+    let s2 = s1 + c; c2 += select(0u, 1u, s2 < s1);
+    r[i] = s2; c = c2;
+  }
+  return r;
+}
+fn fadd(a: U, b: U) -> U {
+  var r: U; var c = 0u;
+  for (var i = 0u; i < 8u; i++) {
+    let s1 = a[i] + b[i]; var c2 = select(0u, 1u, s1 < b[i]);
+    let s2 = s1 + c; c2 += select(0u, 1u, s2 < s1);
+    r[i] = s2; c = c2;
+  }
+  if (c != 0u || geq(r, PM)) { r = usub(r, PM); }
+  return r;
+}
+fn fsub(a: U, b: U) -> U {
+  if (geq(a, b)) { return usub(a, b); }
+  return uadd(usub(a, b), PM);
+}
+fn mul256(a: U, b: U) -> array<u32,16> {
+  var r: array<u32,16>;
+  for (var i = 0u; i < 8u; i++) {
+    var carry = 0u;
+    for (var j = 0u; j < 8u; j++) {
+      let p = mul32(a[i], b[j]);
+      let s1 = r[i + j] + p.x; var c = select(0u, 1u, s1 < p.x);
+      let s2 = s1 + carry; c += select(0u, 1u, s2 < s1);
+      r[i + j] = s2; carry = p.y + c;
+    }
+    r[i + 8u] = carry;
+  }
+  return r;
+}
+/* reduce a 512-bit value mod p using 2^256 = 2^32 + 977 (mod p) */
+fn reduce512(t: array<u32,16>) -> U {
+  var r: array<u32,10>;
+  for (var i = 0u; i < 8u; i++) { r[i] = t[i]; }
+  var carry = 0u;
+  for (var i = 0u; i < 8u; i++) {
+    let p = mul32(t[8u + i], 977u);
+    let s1 = r[i] + p.x; var c = select(0u, 1u, s1 < p.x);
+    let s2 = s1 + carry; c += select(0u, 1u, s2 < s1);
+    r[i] = s2; carry = p.y + c;
+  }
+  r[8] = carry;
+  carry = 0u;
+  for (var i = 0u; i < 8u; i++) {
+    let hh = t[8u + i];
+    let s1 = r[i + 1u] + hh; var c = select(0u, 1u, s1 < hh);
+    let s2 = s1 + carry; c += select(0u, 1u, s2 < s1);
+    r[i + 1u] = s2; carry = c;
+  }
+  r[9] = carry;
+  let hx = r[8]; let hy = r[9];
+  var o: U;
+  let a = mul32(hx, 977u);
+  let q0 = r[0] + a.x; var cy = select(0u, 1u, q0 < a.x); o[0] = q0;
+  let m1 = a.y + hy * 977u;
+  let s1 = r[1] + m1; var c = select(0u, 1u, s1 < m1);
+  let s2 = s1 + hx; c += select(0u, 1u, s2 < s1);
+  let s3 = s2 + cy; c += select(0u, 1u, s3 < s2);
+  o[1] = s3; cy = c;
+  let u1 = r[2] + hy; c = select(0u, 1u, u1 < hy);
+  let u2 = u1 + cy; c += select(0u, 1u, u2 < u1);
+  o[2] = u2; cy = c;
+  for (var i = 3u; i < 8u; i++) { let q = r[i] + cy; cy = select(0u, 1u, q < cy); o[i] = q; }
+  if (cy != 0u) {
+    var cc = 0u;
+    for (var i = 0u; i < 8u; i++) {
+      var ad = 0u; if (i == 0u) { ad = 977u; } else if (i == 1u) { ad = 1u; }
+      let w1 = o[i] + ad; var c2 = select(0u, 1u, w1 < ad);
+      let w2 = w1 + cc; c2 += select(0u, 1u, w2 < w1);
+      o[i] = w2; cc = c2;
+    }
+  }
+  if (geq(o, PM)) { o = usub(o, PM); }
+  return o;
+}
+fn fmul(a: U, b: U) -> U { return reduce512(mul256(a, b)); }
+fn finv(a: U) -> U {
+  var result: U; result[0] = 1u;
+  var base = a;
+  for (var limb = 0u; limb < 8u; limb++) {
+    var e = 0xffffffffu;
+    if (limb == 0u) { e = 0xfffffc2du; } else if (limb == 1u) { e = 0xfffffffeu; }
+    for (var bit = 0u; bit < 32u; bit++) {
+      if ((e & 1u) != 0u) { result = fmul(result, base); }
+      base = fmul(base, base);
+      e = e >> 1u;
+    }
+  }
+  return result;
+}
+fn one() -> U { var o: U; o[0] = 1u; return o; }
+
+fn pdouble(p: Pt) -> Pt {
+  if (is_zero(p.z)) { var inf: Pt; return inf; }
+  let a = fmul(p.x, p.x); let b = fmul(p.y, p.y); let c = fmul(b, b);
+  let t = fadd(p.x, b); let t2 = fmul(t, t);
+  let d0 = fsub(fsub(t2, a), c); let d = fadd(d0, d0);
+  let e = fadd(fadd(a, a), a); let f = fmul(e, e);
+  let x3 = fsub(f, fadd(d, d));
+  var c8 = fadd(c, c); c8 = fadd(c8, c8); c8 = fadd(c8, c8);
+  let y3 = fsub(fmul(e, fsub(d, x3)), c8);
+  let yz = fmul(p.y, p.z); let z3 = fadd(yz, yz);
+  return Pt(x3, y3, z3);
+}
+/* Jacobian + affine (Z2 = 1) */
+fn madd(p: Pt, qx: U, qy: U) -> Pt {
+  if (is_zero(p.z)) { return Pt(qx, qy, one()); }
+  let z1z1 = fmul(p.z, p.z);
+  let u2 = fmul(qx, z1z1);
+  let s2 = fmul(qy, fmul(p.z, z1z1));
+  let h = fsub(u2, p.x);
+  let rr = fsub(s2, p.y);
+  if (is_zero(h)) {
+    if (is_zero(rr)) { return pdouble(p); }
+    var inf: Pt; return inf;
+  }
+  let hh = fmul(h, h); let hhh = fmul(h, hh); let v = fmul(p.x, hh);
+  let x3 = fsub(fsub(fmul(rr, rr), hhh), fadd(v, v));
+  let y3 = fsub(fmul(rr, fsub(v, x3)), fmul(p.y, hhh));
+  let z3 = fmul(p.z, h);
+  return Pt(x3, y3, z3);
+}
+fn scalar_mul(k: U) -> Pt {
+  var r: Pt;
+  for (var limb = 0u; limb < 8u; limb++) {
+    let e = k[limb];
+    for (var nib = 0u; nib < 8u; nib++) {
+      let d = (e >> (nib * 4u)) & 15u;
+      if (d != 0u) {
+        let off = ((limb * 8u + nib) * 15u + (d - 1u)) * 16u;
+        var qx: U; var qy: U;
+        for (var t = 0u; t < 8u; t++) { qx[t] = tbl[off + t]; qy[t] = tbl[off + 8u + t]; }
+        r = madd(r, qx, qy);
+      }
+    }
+  }
+  return r;
+}
+
+fn sha256_33(pre: u32, xb: U) -> array<u32,8> {
+  var w: array<u32,64>;
+  var prev = pre << 24u;
+  for (var i = 0u; i < 8u; i++) { let v = xb[i]; w[i] = prev | (v >> 8u); prev = v << 24u; }
+  w[8] = prev | 0x00800000u;
+  w[15] = 264u;
+  for (var i = 16u; i < 64u; i++) {
+    let x15 = w[i - 15u]; let x2 = w[i - 2u];
+    let s0 = rotr(x15, 7u) ^ rotr(x15, 18u) ^ (x15 >> 3u);
+    let s1 = rotr(x2, 17u) ^ rotr(x2, 19u) ^ (x2 >> 10u);
+    w[i] = w[i - 16u] + s0 + w[i - 7u] + s1;
+  }
+  var a = 0x6a09e667u; var b = 0xbb67ae85u; var c = 0x3c6ef372u; var d = 0xa54ff53au;
+  var e = 0x510e527fu; var f = 0x9b05688cu; var g = 0x1f83d9abu; var h = 0x5be0cd19u;
+  for (var i = 0u; i < 64u; i++) {
+    let S1 = rotr(e, 6u) ^ rotr(e, 11u) ^ rotr(e, 25u);
+    let ch = (e & f) ^ (~e & g);
+    let t1 = h + S1 + ch + KS[i] + w[i];
+    let S0 = rotr(a, 2u) ^ rotr(a, 13u) ^ rotr(a, 22u);
+    let mj = (a & b) ^ (a & c) ^ (b & c);
+    let t2 = S0 + mj;
+    h = g; g = f; f = e; e = d + t1; d = c; c = b; b = a; a = t1 + t2;
+  }
+  return array<u32,8>(0x6a09e667u + a, 0xbb67ae85u + b, 0x3c6ef372u + c, 0xa54ff53au + d,
+                      0x510e527fu + e, 0x9b05688cu + f, 0x1f83d9abu + g, 0x5be0cd19u + h);
+}
+fn rf(r: u32, x: u32, y: u32, z: u32) -> u32 {
+  if (r == 0u) { return x ^ y ^ z; }
+  if (r == 1u) { return (x & y) | (~x & z); }
+  if (r == 2u) { return (x | ~y) ^ z; }
+  if (r == 3u) { return (x & z) | (y & ~z); }
+  return x ^ (y | ~z);
+}
+fn rmd160_32(hin: array<u32,8>) -> array<u32,5> {
+  var x: array<u32,16>;
+  for (var i = 0u; i < 8u; i++) { x[i] = bswap(hin[i]); }
+  x[8] = 0x80u; x[14] = 256u;
+  var al = 0x67452301u; var bl = 0xEFCDAB89u; var cl = 0x98BADCFEu; var dl = 0x10325476u; var el = 0xC3D2E1F0u;
+  var ar = al; var br = bl; var cr = cl; var dr = dl; var er = el;
+  for (var j = 0u; j < 80u; j++) {
+    let rnd = j >> 4u;
+    let fl = rf(rnd, bl, cl, dl); let fr = rf(4u - rnd, br, cr, dr);
+    let tl = rol(al + fl + x[RL[j]] + KL[rnd], SL[j]) + el;
+    al = el; el = dl; dl = rol(cl, 10u); cl = bl; bl = tl;
+    let tr = rol(ar + fr + x[RR[j]] + KR[rnd], SR[j]) + er;
+    ar = er; er = dr; dr = rol(cr, 10u); cr = br; br = tr;
+  }
+  return array<u32,5>(0xEFCDAB89u + cl + dr, 0x98BADCFEu + dl + er, 0x10325476u + el + ar,
+                      0xC3D2E1F0u + al + br, 0x67452301u + bl + cr);
+}
+
+fn sidx(kind: u32, i: u32, tid: u32) -> u32 { return ((kind * prm.batch + i) * prm.threads + tid) * 8u; }
+fn sload(kind: u32, i: u32, tid: u32) -> U {
+  var o: U; let b = sidx(kind, i, tid);
+  for (var j = 0u; j < 8u; j++) { o[j] = scr[b + j]; }
+  return o;
+}
+fn sstore(kind: u32, i: u32, tid: u32, v: U) {
+  let b = sidx(kind, i, tid);
+  for (var j = 0u; j < 8u; j++) { scr[b + j] = v[j]; }
+}
+
+@compute @workgroup_size(64)
+fn main(@builtin(global_invocation_id) gid: vec3<u32>) {
+  let tid = gid.x;
+  if (tid >= prm.threads) { return; }
+  let n = prm.batch;
+  var k: U;
+  k[0] = prm.k[0].x; k[1] = prm.k[0].y; k[2] = prm.k[0].z; k[3] = prm.k[0].w;
+  k[4] = prm.k[1].x; k[5] = prm.k[1].y; k[6] = prm.k[1].z; k[7] = prm.k[1].w;
+  /* key of this thread = k0 + tid * (batch * rounds) */
+  let off = mul32(tid, n * prm.rounds);
+  var cc = 0u;
+  for (var i = 0u; i < 8u; i++) {
+    var ad = 0u; if (i == 0u) { ad = off.x; } else if (i == 1u) { ad = off.y; }
+    let s1 = k[i] + ad; var c2 = select(0u, 1u, s1 < ad);
+    let s2 = s1 + cc; c2 += select(0u, 1u, s2 < s1);
+    k[i] = s2; cc = c2;
+  }
+  var gx: U; var gy: U;
+  for (var i = 0u; i < 8u; i++) { gx[i] = GXL[i]; gy[i] = GYL[i]; }
+
+  var p = scalar_mul(k);
+
+  for (var r = 0u; r < prm.rounds; r++) {
+    var acc: U;
+    for (var i = 0u; i < n; i++) {
+      sstore(0u, i, tid, p.x); sstore(1u, i, tid, p.y); sstore(2u, i, tid, p.z);
+      if (i == 0u) { acc = p.z; } else { acc = fmul(acc, p.z); }
+      sstore(3u, i, tid, acc);
+      p = madd(p, gx, gy);
+    }
+    var u = finv(acc);               /* ONE inversion for the whole batch */
+    for (var ii = 0u; ii < n; ii++) {
+      let i = n - 1u - ii;
+      var zinv: U;
+      if (i > 0u) {
+        zinv = fmul(u, sload(3u, i - 1u, tid));
+        u = fmul(u, sload(2u, i, tid));
+      } else { zinv = u; }
+      let zi2 = fmul(zinv, zinv); let zi3 = fmul(zi2, zinv);
+      let x = fmul(sload(0u, i, tid), zi2);
+      let y = fmul(sload(1u, i, tid), zi3);
+      var xbe: U;
+      for (var j = 0u; j < 8u; j++) { xbe[j] = x[7u - j]; }
+      let pre = select(2u, 3u, (y[0] & 1u) == 1u);
+      let rm = rmd160_32(sha256_33(pre, xbe));
+      if (rm[0] == prm.t.x && rm[1] == prm.t.y && rm[2] == prm.t.z && rm[3] == prm.t.w && rm[4] == prm.t4) {
+        if (atomicAdd(&res.found, 1u) == 0u) { res.tid = tid; res.idx = r * n + i; }
+      }
+    }
+  }
+}
+`;}
+
+/* ---------------- GPU engine ---------------- */
+const hashWords=h=>{const dv=new DataView(h.buffer,h.byteOffset,20);return[0,1,2,3,4].map(i=>dv.getUint32(i*4,true));};
+class Engine{
+  constructor(gpu){this.gpu=gpu;this.scratch=null;this.scratchBytes=0;}
+  async init(log=()=>{}){
+    if(!this.gpu)throw new Error('WebGPU is not available in this browser/device.');
+    const adapter=await this.gpu.requestAdapter({powerPreference:'high-performance'});
+    if(!adapter)throw new Error('No WebGPU adapter found.');
+    let info={};try{info=adapter.info||(await adapter.requestAdapterInfo?.())||{};}catch(e){}
+    this.adapterName=[info.vendor,info.architecture,info.device,info.description].filter(Boolean).join(' ')||'unknown GPU';
+    const L=adapter.limits;
+    try{this.device=await adapter.requestDevice({requiredLimits:{maxStorageBufferBindingSize:L.maxStorageBufferBindingSize,maxBufferSize:L.maxBufferSize}});}
+    catch(e){this.device=await adapter.requestDevice();}
+    const dl=this.device.limits;
+    this.maxScratch=Math.min(dl.maxStorageBufferBindingSize,dl.maxBufferSize,256*2**20);
+    this.device.lost.then(i=>log('GPU device lost: '+i.message));
+    const d=this.device;
+    const mod=d.createShaderModule({code:wgsl()});
+    const ci=await mod.getCompilationInfo();
+    const errs=ci.messages.filter(m=>m.type==='error');
+    if(errs.length)throw new Error('Shader compile error: '+errs.map(m=>`line ${m.lineNum}: ${m.message}`).join(' | '));
+    this.pipeline=await d.createComputePipelineAsync({layout:'auto',compute:{module:mod,entryPoint:'main'}});
+    const tab=buildTable();
+    this.tbl=d.createBuffer({size:tab.byteLength,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_DST});
+    d.queue.writeBuffer(this.tbl,0,tab);
+    this.ubuf=d.createBuffer({size:64,usage:GPUBufferUsage.UNIFORM|GPUBufferUsage.COPY_DST});
+    this.res=d.createBuffer({size:16,usage:GPUBufferUsage.STORAGE|GPUBufferUsage.COPY_SRC|GPUBufferUsage.COPY_DST});
+    this.stage=d.createBuffer({size:16,usage:GPUBufferUsage.MAP_READ|GPUBufferUsage.COPY_DST});
+  }
+  maxThreads(batch){return Math.floor(this.maxScratch/(128*batch)/64)*64;}
+  ensureScratch(threads,batch){
+    const bytes=threads*batch*128;
+    if(bytes>this.maxScratch)throw new Error('Scratch buffer too large for this GPU – lower threads or batch.');
+    if(this.scratch&&this.scratchBytes===bytes)return;
+    this.scratch?.destroy();
+    this.scratch=this.device.createBuffer({size:bytes,usage:GPUBufferUsage.STORAGE});
+    this.scratchBytes=bytes;
+    this.bind=this.device.createBindGroup({layout:this.pipeline.getBindGroupLayout(0),entries:[
+      {binding:0,resource:{buffer:this.ubuf}},{binding:1,resource:{buffer:this.tbl}},
+      {binding:2,resource:{buffer:this.scratch}},{binding:3,resource:{buffer:this.res}}]});
+  }
+  /* cfg: {k0:BigInt, tw:number[5], threads, batch, rounds} -> {found,tid,idx} */
+  async dispatch(cfg){
+    const d=this.device; this.ensureScratch(cfg.threads,cfg.batch);
+    const u=new Uint32Array(16);
+    limbsLE(cfg.k0).forEach((v,i)=>u[i]=v);
+    for(let i=0;i<5;i++)u[8+i]=cfg.tw[i];
+    u[13]=cfg.batch;u[14]=cfg.threads;u[15]=cfg.rounds;
+    d.queue.writeBuffer(this.ubuf,0,u);
+    d.queue.writeBuffer(this.res,0,new Uint32Array(4));
+    const enc=d.createCommandEncoder();
+    const pass=enc.beginComputePass();
+    pass.setPipeline(this.pipeline);pass.setBindGroup(0,this.bind);
+    pass.dispatchWorkgroups(Math.ceil(cfg.threads/64));pass.end();
+    enc.copyBufferToBuffer(this.res,0,this.stage,0,16);
+    d.queue.submit([enc.finish()]);
+    await this.stage.mapAsync(GPUMapMode.READ);
+    const r=new Uint32Array(this.stage.getMappedRange().slice(0));this.stage.unmap();
+    return{found:r[0]>0,tid:r[1],idx:r[2]};
+  }
+  keyFrom(cfg,r){return cfg.k0+BigInt(r.tid)*BigInt(cfg.batch*cfg.rounds)+BigInt(r.idx);}
+  async selfTest(log=()=>{}){
+    const rnd=()=>{const a=crypto.getRandomValues(new Uint32Array(2));return (BigInt(a[0])<<28n|BigInt(a[1]))%(1n<<60n)+1000n;};
+    const cfg={threads:64,batch:16,rounds:2};
+    const span=64*16*2;
+    const cases=[{name:'key 2 (doubling path)',k0:1n,want:2n},{name:'random key A',want:rnd()},{name:'random key B',want:rnd()}];
+    for(const c of cases){
+      if(c.k0===undefined){c.k0=c.want-BigInt(Math.floor(Math.random()*span));}
+      const tw=hashWords(keyHash160(c.want));
+      const run={...cfg,k0:c.k0,tw};
+      const r=await this.dispatch(run);
+      const got=r.found?this.keyFrom(run,r):null;
+      const ok=got===c.want;
+      log(`self-test ${c.name}: ${ok?'OK':'FAIL (got '+(got===null?'nothing':got.toString(16))+')'}`);
+      if(!ok)return false;
+    }
+    return true;
+  }
+}
+
+/* ---------------- CPU fallback (Web Workers, BigInt) ---------------- */
+function cpuWorkerMain(){
+  const jdbl=p=>{
+    if(!p||p.Y===0n)return null;
+    const A=p.X*p.X%P,B=p.Y*p.Y%P,C=B*B%P;
+    const D=mod(2n*((p.X+B)*(p.X+B)-A-C)),E=3n*A%P,F=E*E%P;
+    const X3=mod(F-2n*D);
+    return{X:X3,Y:mod(E*(D-X3)-8n*C),Z:2n*p.Y*p.Z%P};
+  };
+  const jmadd=(p,q)=>{
+    if(!p)return{X:q.x,Y:q.y,Z:1n};
+    const Z1Z1=p.Z*p.Z%P,U2=q.x*Z1Z1%P,S2=q.y*p.Z%P*Z1Z1%P;
+    const H=mod(U2-p.X),R=mod(S2-p.Y);
+    if(H===0n)return R===0n?jdbl(p):null;
+    const HH=H*H%P,HHH=H*HH%P,V=p.X*HH%P;
+    const X3=mod(R*R-HHH-2n*V);
+    return{X:X3,Y:mod(R*(V-X3)-p.Y*HHH),Z:p.Z*H%P};
+  };
+  const smul=k=>{let r=null;for(let i=k.toString(2).length-1;i>=0;i--){r=jdbl(r);if((k>>BigInt(i))&1n)r=jmadd(r,G);}return r;};
+  onmessage=e=>{
+    const {k0,count,batch,target}=e.data;const tg=fromHex(target);
+    const key0=BigInt(k0);let found=-1;
+    for(let off=0;off<count&&found<0;off+=batch){
+      const n=Math.min(batch,count-off);
+      let p=smul(key0+BigInt(off));
+      const pts=[];
+      for(let i=0;i<n;i++){pts.push(p);p=jmadd(p,G);}
+      /* Montgomery batch inversion over the non-infinity points */
+      const idx=[];for(let i=0;i<n;i++)if(pts[i]&&pts[i].Z!==0n)idx.push(i);
+      if(!idx.length)continue;
+      const c=[];let acc=1n;for(const i of idx){acc=acc*pts[i].Z%P;c.push(acc);}
+      let u=modInv(acc);
+      for(let j=idx.length-1;j>=0;j--){
+        const pt=pts[idx[j]];
+        let zi;if(j>0){zi=u*c[j-1]%P;u=u*pt.Z%P;}else zi=u;
+        const zi2=zi*zi%P,x=pt.X*zi2%P,y=pt.Y*zi2%P*zi%P;
+        const pub=new Uint8Array(33);pub[0]=(y&1n)?3:2;pub.set(bigToBytes(x),1);
+        const h=hash160(pub);let ok=true;
+        for(let b=0;b<20;b++)if(h[b]!==tg[b]){ok=false;break;}
+        if(ok){found=off+idx[j];break;}
+      }
+    }
+    postMessage({found});
+  };
+}
+class CpuEngine extends Engine{
+  constructor(coreText,n){super(null);this.cpu=true;this.n=n;this.coreText=coreText;}
+  async init(log=()=>{}){
+    const src=this.coreText+';('+cpuWorkerMain.toString()+')();';
+    this.url=URL.createObjectURL(new Blob([src],{type:'text/javascript'}));
+    this.workers=[];for(let i=0;i<this.n;i++)this.workers.push(new Worker(this.url));
+    this.adapterName=`CPU fallback – ${this.n} worker threads (slow)`;
+  }
+  maxThreads(){return this.n;}
+  async dispatch(cfg){
+    const stride=cfg.batch*cfg.rounds,target=toHex(new Uint8Array(new Uint32Array(cfg.tw).buffer));
+    let next=0,hit=null,pending=this.workers.length;
+    return new Promise((resolve,reject)=>{
+      const feed=w=>{
+        if(hit||next>=cfg.threads){if(--pending===0)resolve(hit||{found:false,tid:0,idx:0});return;}
+        const tid=next++;
+        w.onmessage=e=>{if(e.data.found>=0&&!hit)hit={found:true,tid,idx:e.data.found};feed(w);};
+        w.onerror=err=>reject(new Error('Worker error: '+err.message));
+        w.postMessage({k0:(cfg.k0+BigInt(tid)*BigInt(stride)).toString(),count:stride,batch:cfg.batch,target});
+      };
+      this.workers.forEach(feed);
+    });
+  }
+}
+// ==/CORE==
+
+/* =====================================================================
+   UI
+   ===================================================================== */
+if(typeof document!=='undefined'){(()=>{
+const $=id=>document.getElementById(id);
+const logEl=$('log');
+const log=m=>{const t=new Date().toLocaleTimeString();logEl.textContent+=`[${t}] ${m}\n`;logEl.scrollTop=logEl.scrollHeight;};
+
+let engine=null,gpuEngine=null,cpuEngine=null,running=false,target=null;
+const hw={gpu:false,name:''};
+const st={keys:0,elapsed:0,peak:0,disp:0,dt:0,rate:0,span:0,cov:0,pos:0n,lo:0n,hi:0n,range:0n,mode:'random'};
+const samples=[];
+
+/* ---------- formatting ---------- */
+const fmtRate=r=>{if(!isFinite(r)||r<=0)return'–';const u=['','k','M','G','T'];let i=0;while(r>=1000&&i<4){r/=1000;i++;}return r.toFixed(r>=100?0:r>=10?1:2)+' '+u[i]+'keys/s';};
+const fmtBig=x=>{const n=Number(x);if(n<1e15)return Math.round(n).toLocaleString('en-US');return n.toExponential(2);};
+function fmtDur(s){
+  if(!isFinite(s))return'∞'; if(s<1)return'<1 s';
+  const m=60,h=3600,d=86400,y=31557600;
+  if(s<m)return Math.round(s)+' s'; if(s<h)return Math.floor(s/m)+'m '+Math.round(s%m)+'s';
+  if(s<d)return Math.floor(s/h)+'h '+Math.floor(s%h/m)+'m'; if(s<y)return Math.floor(s/d)+' days';
+  if(s<y*1e6)return (s/y).toLocaleString('en-US',{maximumFractionDigits:1})+' years';
+  return (s/y).toExponential(1)+' years';
+}
+const clock=ms=>{const s=Math.floor(ms/1000);return Math.floor(s/3600)+':'+String(Math.floor(s%3600/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0');};
+
+/* ---------- inputs ---------- */
+function bits(){return Math.min(255,Math.max(1,parseInt($('bitsNum').value)||1));}
+function updRange(){
+  const b=bits();const lo=1n<<BigInt(b-1),hi=(1n<<BigInt(b))-1n;
+  const sh=v=>{const s='0x'+v.toString(16);return s.length>26?s.slice(0,12)+'…'+s.slice(-8):s;};
+  $('bitsInfo').textContent=`${sh(lo)} … ${sh(hi)}   (2^${b-1} keys)`;
+}
+$('bitsRange').oninput=()=>{$('bitsNum').value=$('bitsRange').value;updRange();};
+$('bitsNum').oninput=()=>{const b=bits();$('bitsRange').value=Math.min(160,b);updRange();};
+function updTarget(){
+  const el=$('targetInfo');
+  if(!$('target').value.trim()){el.className='hint';el.textContent='Enter a target.';target=null;return;}
+  try{target=parseTarget($('target').value);el.className='hint ok';el.textContent=`✔ ${target.kind} → HASH160 ${toHex(target.hash)}`;}
+  catch(e){target=null;el.className='hint bad';el.textContent='✘ '+e.message;}
+}
+$('target').oninput=updTarget;
+updRange();updTarget();
+
+/* ---------- chart ---------- */
+const cv=$('chart');
+function draw(){
+  const dpr=window.devicePixelRatio||1,w=cv.clientWidth,h=cv.clientHeight;
+  if(cv.width!==w*dpr||cv.height!==h*dpr){cv.width=w*dpr;cv.height=h*dpr;}
+  const c=cv.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);c.clearRect(0,0,w,h);
+  const L=62,R=12,T=12,B=24,pw=w-L-R,ph=h-T-B;
+  const maxV=Math.max(1,...samples.map(s=>s.r))*1.15;
+  let mag=Math.pow(10,Math.floor(Math.log10(maxV)));let nice=[1,2,2.5,5,10].map(m=>m*mag).find(v=>v>=maxV)||maxV;
+  c.font='11px system-ui';c.fillStyle='#8a9ab3';c.strokeStyle='#1d2738';c.lineWidth=1;
+  for(let i=0;i<=4;i++){const y=T+ph-ph*i/4;c.beginPath();c.moveTo(L,y);c.lineTo(L+pw,y);c.stroke();c.textAlign='right';c.fillText(fmtRate(nice*i/4).replace('keys/s','/s').replace('–','0'),L-6,y+4);}
+  if(samples.length<2){c.textAlign='center';c.fillText('waiting for data…',L+pw/2,T+ph/2);return;}
+  const n=samples.length,x=i=>L+pw*i/(Math.max(n-1,1)),y=v=>T+ph-ph*v/nice;
+  c.textAlign='center';
+  for(let k=0;k<=4;k++){const i=Math.round((n-1)*k/4);c.fillText(k===4?'now':'−'+(n-1-i)+'s',x(i),h-7);}
+  c.beginPath();c.moveTo(x(0),y(samples[0].r));samples.forEach((s,i)=>c.lineTo(x(i),y(s.r)));
+  c.strokeStyle='#f7931a';c.lineWidth=2;c.stroke();
+  c.lineTo(x(n-1),T+ph);c.lineTo(x(0),T+ph);c.closePath();
+  const g=c.createLinearGradient(0,T,0,T+ph);g.addColorStop(0,'#f7931a55');g.addColorStop(1,'#f7931a00');c.fillStyle=g;c.fill();
+}
+window.addEventListener('resize',draw);
+
+/* ---------- stats tick ---------- */
+function render(){
+  $('sRate').textContent=fmtRate(st.rate);
+  const avg=st.elapsed>0?st.keys/(st.elapsed/1000):0;
+  $('sAvg').textContent=fmtRate(avg);$('sPeak').textContent=fmtRate(st.peak);
+  $('sDt').textContent=st.dt?Math.round(st.dt)+' ms':'–';
+  $('sCfg').textContent=st.cfgTxt||'';
+  $('sKeys').textContent=fmtBig(st.keys);$('sTime').textContent=clock(st.elapsed);
+  if(st.range>0n){
+    let cov,eta,lbl;
+    if(st.mode==='seq'){cov=Number((st.pos-st.lo)*10000n/st.range)/100;eta=avg>0?Number(st.hi-st.pos)/avg:Infinity;lbl='to finish sweep';}
+    else{cov=(1-Math.exp(-st.keys/Number(st.range)))*100;eta=avg>0?Number(st.range)*0.5/avg:Infinity;lbl='expected (50% chance)';}
+    cov=Math.max(0,Math.min(100,cov));
+    $('sCov').textContent=(cov<0.01&&cov>0?cov.toExponential(1):cov.toFixed(2))+'%';
+    $('bar').style.width=cov+'%';$('sEta').textContent=avg>0?fmtDur(eta):'–';$('sEtaLbl').textContent=lbl;
+  }
+  draw();
+}
+setInterval(()=>{if(running)render();},250);
+let lastSampleKeys=0,lastSampleT=0;
+setInterval(()=>{
+  if(!running)return;const now=performance.now();
+  if(lastSampleT){const r=(st.keys-lastSampleKeys)/((now-lastSampleT)/1000);samples.push({r});if(samples.length>600)samples.shift();}
+  lastSampleKeys=st.keys;lastSampleT=now;
+},1000);
+
+/* ---------- engine bootstrap ---------- */
+const GPU_IDS=['batch','threads','rounds','auto'],CPU_IDS=['cpuWorkers','cpuBatch'];
+const useGpu=()=>hw.gpu&&$('backend').value!=='cpu';
+function applyUI(){
+  const g=useGpu();
+  $('gpuBlock').classList.toggle('off',!g);$('cpuBlock').classList.toggle('off',g);
+  for(const id of GPU_IDS)$(id).disabled=!g||running;
+  for(const id of CPU_IDS)$(id).disabled=g||running;
+  $('backend').disabled=!hw.gpu||running;
+  const el=$('hwInfo');
+  if(hw.gpu){el.className='hw ok';el.textContent=g?'✔ GPU found: '+hw.name+' – using GPU':'✔ GPU found: '+hw.name+' – CPU-only mode selected';}
+  else{el.className='hw no';el.textContent='✘ No usable GPU adapter – using CPU (JavaScript workers). GPU settings are disabled.';}
+}
+async function detectHardware(){
+  hw.gpu=false;hw.name='';
+  if(navigator.gpu){
+    try{
+      const a=await navigator.gpu.requestAdapter({powerPreference:'high-performance'});
+      if(a&&!a.isFallbackAdapter){
+        let info=a.info||{};try{if(!a.info&&a.requestAdapterInfo)info=await a.requestAdapterInfo();}catch(e){}
+        hw.gpu=true;hw.name=[info.vendor,info.architecture,info.description||info.device].filter(Boolean).join(' ')||'GPU adapter';
+      }else if(a)log('Only a software (fallback) WebGPU adapter exists – ignoring it, CPU workers are faster.');
+      else log('WebGPU is present but no GPU adapter is available.');
+    }catch(e){log('WebGPU check failed: '+e.message);}
+  }else log('This browser has no WebGPU.');
+  log(hw.gpu?'Hardware check: GPU found – '+hw.name:'Hardware check: no GPU – CPU workers will be used.');
+  $('gpuInfo').textContent=hw.gpu?'Backend: GPU – '+hw.name:'Backend: CPU – '+$('cpuWorkers').value+' JavaScript workers';
+  applyUI();
+}
+async function ensureEngine(){
+  if(useGpu()){
+    if(!gpuEngine){
+      try{
+        const e=new Engine(navigator.gpu);log('Initialising WebGPU, building table & compiling kernel…');
+        await e.init(log);gpuEngine=e;log('GPU ready: '+e.adapterName);
+      }catch(err){log('GPU start-up failed ('+err.message+') – switching to CPU.');hw.gpu=false;applyUI();}
+    }
+    if(gpuEngine&&useGpu()){engine=gpuEngine;$('gpuInfo').textContent='Backend: GPU – '+hw.name+` · scratch limit ${(gpuEngine.maxScratch/2**20)|0} MB`;return;}
+  }
+  const n=+$('cpuWorkers').value||1;
+  if(!cpuEngine||cpuEngine.n!==n){
+    cpuEngine?.workers?.forEach(w=>w.terminate());
+    const src=document.getElementById('main').textContent;
+    const core=src.split('// ==CO'+'RE==')[1].split('// ==/CO'+'RE==')[0];
+    cpuEngine=new CpuEngine(core,n);await cpuEngine.init(log);
+    log('CPU engine ready: '+cpuEngine.adapterName);
+  }
+  engine=cpuEngine;$('gpuInfo').textContent='Backend: CPU – '+n+' JavaScript workers';
+}
+async function runTest(){
+  await ensureEngine();log('Running self-test on '+(engine.cpu?'CPU':'GPU')+'…');
+  const ok=await engine.selfTest(log);engine.tested=ok;
+  log(ok?'✔ Self-test passed – results match the reference.':'✘ Self-test FAILED – do not trust results from this backend.');
+  return ok;
+}
+$('testBtn').onclick=async()=>{$('testBtn').disabled=true;try{await runTest();}catch(e){log('Error: '+e.message);}$('testBtn').disabled=running;};
+
+/* ---------- main loop ---------- */
+function rand(max){const nb=Math.ceil((max.toString(2).length+64)/8);const a=crypto.getRandomValues(new Uint8Array(nb));let v=0n;for(const b of a)v=(v<<8n)|BigInt(b);return v%max;}
+function setRun(r){running=r;$('startBtn').disabled=r;$('stopBtn').disabled=!r;$('testBtn').disabled=r;
+  for(const id of['target','bitsRange','bitsNum','mode'])$(id).disabled=r;
+  applyUI();
+  $('badge').textContent=r?'running':'idle';$('badge').className='badge'+(r?' run':'');}
+$('stopBtn').onclick=()=>{running=false;$('badge').textContent='stopping…';};
+
+$('startBtn').onclick=async()=>{
+  updTarget();if(!target){log('Fix the target first.');return;}
+  $('found').style.display='none';
+  setRun(true);
+  try{
+    await ensureEngine();
+    if(!engine.tested&&!(await runTest())){setRun(false);return;}
+    const b=bits();st.lo=1n<<BigInt(b-1);st.hi=(1n<<BigInt(b))-1n;st.range=st.hi-st.lo+1n;st.mode=$('mode').value;
+    st.pos=st.lo;
+    let batch,threads,auto,rounds;
+    if(engine.cpu){
+      batch=+$('cpuBatch').value;threads=engine.n;auto=true;rounds=1;
+    }else{
+      batch=+$('batch').value;threads=+$('threads').value;
+      while(engine.maxThreads(batch)<64&&batch>8){batch>>=1;log('Batch reduced to '+batch+' (GPU memory limit).');}
+      const mt=engine.maxThreads(batch);
+      if(mt<64)throw new Error('This GPU cannot allocate the scratch memory even for the smallest batch.');
+      if(threads>mt){log(`Threads reduced ${threads} → ${mt} (GPU buffer limit).`);threads=mt;}
+      auto=$('auto').checked;rounds=Math.max(1,Math.min(4096,+$('rounds').value||1));
+    }
+    const tw=hashWords(target.hash);
+    st.keys=0;st.elapsed=0;st.peak=0;st.rate=0;st.disp=0;samples.length=0;lastSampleT=0;
+    log(`Start (${engine.cpu?'CPU':'GPU'}): ${b}-bit range, ${st.mode==='seq'?'sequential':'random'}, batch ${batch}, ${threads} ${engine.cpu?'workers':'threads'}${auto?', auto-tuned':''}.`);
+    let ema=0,tPrev=performance.now(),done=false;
+    while(running){
+      const span=BigInt(threads)*BigInt(batch*rounds);
+      let k0;
+      if(st.mode==='seq'){k0=st.pos;}
+      else k0=st.range>span?st.lo+rand(st.range-span+1n):st.lo;
+      const cfg={k0,tw,threads,batch,rounds};
+      const t0=performance.now();
+      const r=await engine.dispatch(cfg);
+      const t1=performance.now(),dt=t1-t0;
+      st.elapsed+=t1-tPrev;tPrev=t1;
+      st.keys+=Number(span);st.dt=dt;st.disp++;
+      const rate=Number(span)/(dt/1000);ema=ema?ema*0.7+rate*0.3:rate;st.rate=ema;st.peak=Math.max(st.peak,rate);
+      st.cfgTxt=`${threads}×${batch}×${rounds}`;
+      if(st.mode==='seq'){st.pos+=span;}
+      if(r.found){
+        const key=engine.keyFrom(cfg,r);
+        const ok=toHex(keyHash160(key))===toHex(target.hash)&&key>0n&&key<N;
+        const hexk=key.toString(16).padStart(64,'0');
+        $('found').style.display='block';
+        $('fStatus').textContent=ok?'✔ Verified on CPU: HASH160 of this key matches the target.':'⚠ Backend reported a hit but the check FAILED (false positive) – continuing.';
+        $('fHex').textContent=hexk;$('fWif').textContent=ok?wif(key):'–';
+        $('fCalc').textContent=`random base 0x${k0.toString(16)}\n+ thread ${r.tid} × batch×rounds ${batch*rounds} = ${BigInt(r.tid)*BigInt(batch*rounds)}\n+ index ${r.idx}\n= 0x${key.toString(16)}`;
+        log(ok?'🎉 KEY FOUND: '+hexk:'False positive ignored.');
+        if(ok){try{localStorage.setItem('recoveryMinerFound',hexk);}catch(e){}document.title='✔ KEY FOUND – Recovery Miner';
+          try{const a=new AudioContext(),o=a.createOscillator();o.connect(a.destination);o.frequency.value=880;o.start();o.stop(a.currentTime+0.4);}catch(e){}
+          $('found').scrollIntoView({behavior:'smooth'});done=true;break;}
+      }
+      if(st.mode==='seq'&&st.pos>st.hi){log('Sequential sweep of the whole range finished – key not in this range.');break;}
+      if(auto){
+        const want=Math.max(1,Math.min(4096,Math.floor(2**31/(threads*batch)),Math.round(rounds*Math.min(4,Math.max(0.25,250/dt)))));
+        rounds=Math.max(1,Math.round(rounds*0.4+want*0.6));
+      }
+      await new Promise(r=>setTimeout(r,0));
+    }
+    render();
+    log(done?'Stopped – key found.':'Stopped.');
+  }catch(e){log('Error: '+e.message);console.error(e);}
+  setRun(false);
+};
+$('copyBtn').onclick=()=>{navigator.clipboard?.writeText($('fHex').textContent);log('Key copied.');};
+
+{const hc=Math.max(1,Math.min(32,navigator.hardwareConcurrency||4));
+ for(let i=1;i<=hc;i++){const o=document.createElement('option');o.value=o.textContent=i;if(i===hc)o.selected=true;$('cpuWorkers').appendChild(o);}}
+$('backend').onchange=()=>{applyUI();$('gpuInfo').textContent=useGpu()?'Backend: GPU – '+hw.name:'Backend: CPU – '+$('cpuWorkers').value+' JavaScript workers';};
+$('cpuWorkers').onchange=()=>{if(!useGpu())$('gpuInfo').textContent='Backend: CPU – '+$('cpuWorkers').value+' JavaScript workers';};
+applyUI();detectHardware();
+draw();
+})();}
+</script>
+</body>
+</html>
